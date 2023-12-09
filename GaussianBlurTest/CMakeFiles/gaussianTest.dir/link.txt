@@ -1,0 +1,1 @@
+/usr/bin/g++ CMakeFiles/gaussianTest.dir/main.cu.o -o gaussianTest  -lcudadevrt -lcudart_static -lrt -lpthread -ldl  -L"/usr/local/cuda-11/targets/x86_64-linux/lib/stubs" -L"/usr/local/cuda-11/targets/x86_64-linux/lib"
