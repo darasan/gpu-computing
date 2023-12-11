@@ -16,7 +16,11 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-#define GRAYSCALE 1
+#define GRAYSCALE 0
+#define SEPIA 0
+#define NO_FILTER 0
+#define RED_FILTER 1
+#define GAUSSIAN 0
 
 const char* filename = "../LivingRoom.jpg";
 
@@ -66,19 +70,49 @@ int main(int argc, char **argv) {
       *(pg + 1) = *(p + 3);
     }
   }
-#else
-  printf("Convert to sepia\n");
+#elif SEPIA
+  printf("Sepia filter\n");
   //Sepia filter coefficients from https://stackoverflow.com/questions/1061093/how-is-a-sepia-tone-created
   for(unsigned char *p = inputData, *pg = outputData; p != inputData + inputImageSize; p += inputChannels, pg += outputChannels)
   {
-    *pg       = (uint8_t)fmin(0.393 * *p + 0.769 * *(p + 1) + 0.189 * *(p + 2), 255.0);         // red
-    *(pg + 1) = (uint8_t)fmin(0.349 * *p + 0.686 * *(p + 1) + 0.168 * *(p + 2), 255.0);         // green
-    *(pg + 2) = (uint8_t)fmin(0.272 * *p + 0.534 * *(p + 1) + 0.131 * *(p + 2), 255.0);         // blue        
+    *pg       = (uint8_t)fmin(0.393 * *p + 0.769 * *(p + 1) + 0.189 * *(p + 2), 255.0);         // writing to red pixel in target image (pg)
+    *(pg + 1) = (uint8_t)fmin(0.349 * *p + 0.686 * *(p + 1) + 0.168 * *(p + 2), 255.0);         // ""         green
+    *(pg + 2) = (uint8_t)fmin(0.272 * *p + 0.534 * *(p + 1) + 0.131 * *(p + 2), 255.0);         // ""         blue  
+    //Not very well written, note its R= (0.272 * *p), G = (0.534 * *(p + 1)), B = (0.131 * *(p + 2)). So getting each RGB component for each pixel, mult by coeff and write to output
     if(inputChannels == 4) {
-    *(pg + 3) = *(p + 3);
+      //Just copy alpha channel as is
+      *(pg + 3) = *(p + 3);
     }
   }
-  #endif
+#elif NO_FILTER
+  printf("No filter\n");
+  for(unsigned char *p = inputData, *pg = outputData; p != inputData + inputImageSize; p += inputChannels, pg += outputChannels)
+  {
+    *pg       = *p;
+    *(pg + 1) = *(p+1);
+    *(pg + 2) = *(p+2);
+    if(inputChannels == 4) {
+      //Just copy alpha channel as is
+      *(pg + 3) = *(p + 3);
+    }
+    //printf("Orig values: R: %d G: %d B: %d \n", *pg, *(pg + 1), *(pg + 2));
+  }
+
+#elif RED_FILTER
+  printf("Red filter\n");
+  float redBalance = 0.0; //range 0.0 - 255.0
+  for(unsigned char *p = inputData, *pg = outputData; p != inputData + inputImageSize; p += inputChannels, pg += outputChannels)
+  {
+    *pg       = (uint8_t) *p * (redBalance/255.0); //Need float else any value less than 255 just goes to 0
+    *(pg + 1) = *(p+1);
+    *(pg + 2) = *(p+2);
+    if(inputChannels == 4) {
+      //Just copy alpha channel as is
+      *(pg + 3) = *(p + 3);
+    }
+  }
+
+#endif
 
   //Write result to file
   printf("Write to file\n");
@@ -91,6 +125,7 @@ int main(int argc, char **argv) {
     printf("Error writing file\n");
   }
 
+  stbi_image_free(inputData);
   delete(outputData);
 
   return (EXIT_SUCCESS);
