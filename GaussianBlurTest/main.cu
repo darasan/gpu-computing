@@ -25,6 +25,40 @@
 
 const char* filename = "../LivingRoom.jpg";
 
+float offset[5] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f };
+float weight[5] = {0.2270270270, 0.1945945946, 0.1216216216, 0.0540540541, 0.0162162162 };
+
+enum pxColour{ 
+  RED = 0, 
+  GREEN, 
+  BLUE 
+};
+
+enum pxColour colour; 
+
+unsigned char getPixelColour(int x, int y, int width, int height, int numChannels, pxColour colour, unsigned char *data)
+{
+  if (x < 0 || x >= width || y < 0 ||  y >= height || numChannels!=3 || colour < 0 || colour > 3){
+    printf("Error getPixelColour: out of bounds\n");
+    return 0;
+  }
+
+  else{
+    return *(data + ((x + y*width) * numChannels) + (int) colour);
+  }
+}
+
+void setPixelColour(int x, int y, int width, int height, int numChannels, pxColour colour, unsigned char *data, unsigned char value)
+{
+  if (x < 0 || x >= width || y < 0 ||  y >= height || numChannels!=3 || colour < 0 || colour > 3 ){
+    printf("Error setPixelColour: out of bounds\n");
+  }
+
+  else{
+    *(data + ((x + y*width) * numChannels) + (int) colour) = value;
+  }
+}
+
 int main(int argc, char **argv) {
 
   std::cout << "\nGaussian Blur Test\n" << std::endl;
@@ -170,9 +204,12 @@ int main(int argc, char **argv) {
     out += outputChannels;
   }
 
-    if(inputChannels == 4) {
-      //Just copy alpha channel as is
-      *(pg + 3) = *(p + 3);
+  //Target test
+  for (int val=0;val<100;val++)
+  {
+    setPixelColour(270+val,240,inputWidth,inputHeight,inputChannels,RED,outputData,255); //horiz: 320-50 = 270
+    setPixelColour(320,190+val,inputWidth,inputHeight,inputChannels,GREEN,outputData,255); //vert:  240-50 = 190
+  }
     }
   }
 
@@ -180,7 +217,7 @@ int main(int argc, char **argv) {
 
   //Write result to file
   printf("Write to file\n");
-  success = stbi_write_jpg("outputFile.jpg", outputWidth, outputHeight, outputChannels, outputData, 80); //last arg is quality, 1-100
+  success = stbi_write_jpg("outputFile.jpg", outputWidth, outputHeight, outputChannels, outputData, 100); //last arg is quality, 1-100
   if(success){
     printf("Wrote file OK! x:%d y:%d channels:%d\n", inputWidth, inputHeight, outputChannels);
   }
