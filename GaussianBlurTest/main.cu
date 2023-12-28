@@ -20,8 +20,8 @@
 #define SEPIA 0
 #define NO_FILTER 0
 #define RED_FILTER 0
-#define BORDER 1
-#define GAUSSIAN 0
+#define BORDER 0
+#define GAUSSIAN 1
 
 const char* filename = "../LivingRoom.jpg";
 
@@ -179,14 +179,12 @@ int main(int argc, char **argv) {
       *out       = 255;
       *(out + 1) = 0;
       *(out + 2) = 0;
-
-      printf("colIdx: %d\n", colIdx);
     }
 
     //Write image
     else
     {
-      *out       = *in; 
+      *out       = *in;
       *(out + 1) = *(in + 1);
       *(out + 2) = *(in + 2);
     }
@@ -210,9 +208,76 @@ int main(int argc, char **argv) {
     setPixelColour(270+val,240,inputWidth,inputHeight,inputChannels,RED,outputData,255); //horiz: 320-50 = 270
     setPixelColour(320,190+val,inputWidth,inputHeight,inputChannels,GREEN,outputData,255); //vert:  240-50 = 190
   }
+
+#elif GAUSSIAN
+  unsigned char output_red_h = 0, output_green_h = 0, output_blue_h = 0;
+  unsigned char output_red_v = 0, output_green_v = 0, output_blue_v = 0;
+  int kernelSize = 5;
+
+  unsigned char *in = inputData;
+  unsigned char *out = outputData;
+  int border_width = 5;
+  int rowIdx = 0;
+  int colIdx = 0;
+
+  while(rowIdx<inputHeight) //Scan rows top to bottom
+  {
+    if((rowIdx < border_width) || (rowIdx>(inputHeight-border_width))) //top and bottom borders
+    {
+      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, out, 255);
+    }
+
+    else if((colIdx < border_width) || (colIdx >= (inputWidth-border_width))) //side borders
+    {
+      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, out, 255);
+    }
+
+    else //blur
+    { 
+      //Get middle (current) pixel colour
+      output_red_h = output_red_v = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, in) * weight[0];
+      output_green_h = output_green_v = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, in) * weight[0];
+      output_blue_h = output_blue_v = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, in) * weight[0];
+
+      //Add horizontal px
+      for(int k = 1; k<kernelSize; k++)
+      {
+        output_red_h += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, RED, in) * weight[k]; //px to the right 
+        output_red_h += getPixelColour(colIdx-k, rowIdx, inputWidth, inputHeight, inputChannels, RED, in) * weight[k]; //px to the left
+
+        output_green_h += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, in) * weight[k];
+        output_green_h += getPixelColour(colIdx-k, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, in) * weight[k];
+
+        output_blue_h += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, in) * weight[k];
+        output_blue_h += getPixelColour(colIdx-k, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, in) * weight[k];
+      }
+
+      //Add vertical px
+      for(int k = 1; k<kernelSize;k++)
+      {
+        output_red_v += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, RED, in) * weight[k]; //px above
+        output_red_v += getPixelColour(colIdx, rowIdx-k, inputWidth, inputHeight, inputChannels, RED, in) * weight[k]; //px below
+
+        output_green_v += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, GREEN, in) * weight[k];
+        output_green_v += getPixelColour(colIdx, rowIdx-k, inputWidth, inputHeight, inputChannels, GREEN, in) * weight[k];
+
+        output_blue_v += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, BLUE, in) * weight[k];
+        output_blue_v += getPixelColour(colIdx, rowIdx-k, inputWidth, inputHeight, inputChannels, BLUE, in) * weight[k];
+      }
+
+      //Write new pixel
+      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, out, (output_red_h + output_red_v)/2);
+      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, out, (output_green_h + output_green_v)/2);
+      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, out, (output_blue_h + output_blue_v)/2);
+    }
+
+    colIdx++; //Move to next pixel in row
+    if(colIdx>=inputWidth) 
+    {
+      rowIdx++;
+      colIdx = 0; //new row, reset cols
     }
   }
-
 #endif
 
   //Write result to file
