@@ -23,12 +23,20 @@
 #define BORDER 0
 #define GAUSSIAN 1
 
-const char* filename = "../LivingRoom.jpg";
+//const char* filename = "../LivingRoom.jpg";
+const char* filename = "gaussVert.jpg";
 
-float offset[5] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f };
-float weight[5] = {0.2270270270, 0.1945945946, 0.1216216216, 0.0540540541, 0.0162162162 };
+int kernelRadius = 5;
+//Sigma = 2
+//float kernel[6] = {0.19859610213125314, 0.17571363439579307, 0.12170274650962626, 0.06598396774984912, 0.028001560233780885, 0.009300040045324049 };
+//float kernel[9] = {0.1974167643837327, 0.17467018127877265, 0.12098003019548202, 0.06559213033177563, 0.027835276522173394, 0.009244812937837047, 0.002402783593203998, 0.0004886523773990668, 0.00007775057148979088};
 
-enum pxColour{ 
+//Sigma = 5, radius 5
+float kernel[6] = {0.10852806958754817, 0.10647588402345369, 0.10055043971256167, 0.09139801540527086, 0.07996681437063455, 0.06734481169430515};
+//radius 9
+//float kernel[10] = {0.08318856568159615, 0.08161553140356746, 0.07707358004367856, 0.0700580949850532, 0.0612958897629078, 0.05162091532851887, 0.04184482605116835, 0.03264970400357284, 0.02452096257892869, 0.017726213001806112};
+
+enum pxColour{
   RED = 0, 
   GREEN, 
   BLUE 
@@ -51,7 +59,7 @@ unsigned char getPixelColour(int x, int y, int width, int height, int numChannel
 void setPixelColour(int x, int y, int width, int height, int numChannels, pxColour colour, unsigned char *data, unsigned char value)
 {
   if (x < 0 || x >= width || y < 0 ||  y >= height || numChannels!=3 || colour < 0 || colour > 3 ){
-    printf("Error setPixelColour: out of bounds\n");
+    printf("Error setPixelColour: out of bounds x:%d y:%d chans:%d colour%d\n", x,y,numChannels,colour);
   }
 
   else{
@@ -97,7 +105,8 @@ int main(int argc, char **argv) {
 
   printf("Allocate memory\n");
   unsigned char *outputData = new unsigned char[outputImageSize]; 
-  if(outputData == NULL) {
+  unsigned char *tempData = new unsigned char[outputImageSize]; 
+  if(outputData == NULL || tempData == NULL ) {
     printf("Unable to allocate memory for output image\n");
     exit(1);
   }
@@ -160,7 +169,7 @@ int main(int argc, char **argv) {
   {
     /* //test - draw top half of image only
     if(i<=inputWidth*(inputHeight/2)*inputChannels){    
-      *out       = *in; 
+      *out       = *in;
       *(out + 1) = *(in + 1);
       *(out + 2) = *(in + 2);
     } */
@@ -179,6 +188,8 @@ int main(int argc, char **argv) {
       *out       = 255;
       *(out + 1) = 0;
       *(out + 2) = 0;
+
+      //printf("colIdx: %d\n", colIdx);
     }
 
     //Write image
@@ -212,63 +223,50 @@ int main(int argc, char **argv) {
 #elif GAUSSIAN
   unsigned char output_red_h = 0, output_green_h = 0, output_blue_h = 0;
   unsigned char output_red_v = 0, output_green_v = 0, output_blue_v = 0;
-  int kernelSize = 5;
 
   unsigned char *in = inputData;
-  unsigned char *out = outputData;
-  int border_width = 5;
+  int border_width = kernelRadius+1;
   int rowIdx = 0;
   int colIdx = 0;
+
 
   while(rowIdx<inputHeight) //Scan rows top to bottom
   {
     if((rowIdx < border_width) || (rowIdx>(inputHeight-border_width))) //top and bottom borders
     {
-      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, out, 255);
+      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, tempData, 255);
     }
 
     else if((colIdx < border_width) || (colIdx >= (inputWidth-border_width))) //side borders
     {
-      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, out, 255);
+      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, tempData, 255);
     }
 
     else //blur
-    { 
+    {
       //Get middle (current) pixel colour
-      output_red_h = output_red_v = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, in) * weight[0];
-      output_green_h = output_green_v = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, in) * weight[0];
-      output_blue_h = output_blue_v = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, in) * weight[0];
-
+      output_red_h = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, in) * kernel[0];
+      output_green_h = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, in) * kernel[0];
+      output_blue_h = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, in) * kernel[0];
+  
       //Add horizontal px
-      for(int k = 1; k<kernelSize; k++)
+      for(int k = 1; k<=kernelRadius; k++)
       {
-        output_red_h += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, RED, in) * weight[k]; //px to the right 
-        output_red_h += getPixelColour(colIdx-k, rowIdx, inputWidth, inputHeight, inputChannels, RED, in) * weight[k]; //px to the left
+        //printf("k=%d kernel[k]=%f\n", k, kernel[k]);
+        output_red_h += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, RED, in) * kernel[k]; //px to the right 
+        output_red_h += getPixelColour(colIdx-k, rowIdx, inputWidth, inputHeight, inputChannels, RED, in) * kernel[k]; //px to the left
 
-        output_green_h += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, in) * weight[k];
-        output_green_h += getPixelColour(colIdx-k, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, in) * weight[k];
+        output_green_h += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, in) * kernel[k];
+        output_green_h += getPixelColour(colIdx-k, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, in) * kernel[k];
 
-        output_blue_h += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, in) * weight[k];
-        output_blue_h += getPixelColour(colIdx-k, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, in) * weight[k];
+        output_blue_h += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, in) * kernel[k];
+        output_blue_h += getPixelColour(colIdx-k, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, in) * kernel[k];
       }
 
-      //Add vertical px
-      for(int k = 1; k<kernelSize;k++)
-      {
-        output_red_v += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, RED, in) * weight[k]; //px above
-        output_red_v += getPixelColour(colIdx, rowIdx-k, inputWidth, inputHeight, inputChannels, RED, in) * weight[k]; //px below
-
-        output_green_v += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, GREEN, in) * weight[k];
-        output_green_v += getPixelColour(colIdx, rowIdx-k, inputWidth, inputHeight, inputChannels, GREEN, in) * weight[k];
-
-        output_blue_v += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, BLUE, in) * weight[k];
-        output_blue_v += getPixelColour(colIdx, rowIdx-k, inputWidth, inputHeight, inputChannels, BLUE, in) * weight[k];
-      }
-
-      //Write new pixel
-      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, out, (output_red_h + output_red_v)/2);
-      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, out, (output_green_h + output_green_v)/2);
-      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, out, (output_blue_h + output_blue_v)/2);
+      //Write horiz pixels
+      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, tempData, (output_red_h));
+      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, tempData, (output_green_h));
+      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, tempData, (output_blue_h));
     }
 
     colIdx++; //Move to next pixel in row
@@ -278,11 +276,59 @@ int main(int argc, char **argv) {
       colIdx = 0; //new row, reset cols
     }
   }
+   
+    rowIdx = 0;
+    colIdx = 0;
+
+    //Use horiz blur data as input for vert blur
+    while(rowIdx<inputHeight) //Scan rows top to bottom
+    {
+      if((rowIdx < border_width) || (rowIdx>(inputHeight-border_width))) //top and bottom borders
+      {
+        setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, outputData, 255);
+      }
+
+      else if((colIdx < border_width) || (colIdx >= (inputWidth-border_width))) //side borders
+      {
+        setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, outputData, 255);
+      }
+
+      else //blur
+      {
+        output_red_v = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, tempData) * kernel[0];
+        output_green_v = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, tempData) * kernel[0];
+        output_blue_v = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, tempData) * kernel[0];
+
+        for(int k = 1; k<=kernelRadius;k++)
+        {
+          output_red_v += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, RED, tempData) * kernel[k]; //px above
+          output_red_v += getPixelColour(colIdx, rowIdx-k, inputWidth, inputHeight, inputChannels, RED, tempData) * kernel[k]; //px below
+
+          output_green_v += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, GREEN, tempData) * kernel[k];
+          output_green_v += getPixelColour(colIdx, rowIdx-k, inputWidth, inputHeight, inputChannels, GREEN, tempData) * kernel[k];
+
+          output_blue_v += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, BLUE, tempData) * kernel[k];
+          output_blue_v += getPixelColour(colIdx, rowIdx-k, inputWidth, inputHeight, inputChannels, BLUE, tempData) * kernel[k];
+        }
+
+        //Write vert pixels
+        setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, outputData, (output_red_v));
+        setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, outputData, (output_green_v));
+        setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, outputData, (output_blue_v));
+      }
+
+      colIdx++; //Move to next pixel in row
+      if(colIdx>=inputWidth)
+      {
+        rowIdx++;
+        colIdx = 0; //new row, reset cols
+      }
+    }
 #endif
 
   //Write result to file
   printf("Write to file\n");
-  success = stbi_write_jpg("outputFile.jpg", outputWidth, outputHeight, outputChannels, outputData, 100); //last arg is quality, 1-100
+  success = stbi_write_jpg("gauss5.jpg", outputWidth, outputHeight, outputChannels, outputData, 100); //last arg is quality, 1-100
   if(success){
     printf("Wrote file OK! x:%d y:%d channels:%d\n", inputWidth, inputHeight, outputChannels);
   }
@@ -293,6 +339,7 @@ int main(int argc, char **argv) {
 
   stbi_image_free(inputData);
   delete(outputData);
+  delete(tempData);
 
   return (EXIT_SUCCESS);
 }
