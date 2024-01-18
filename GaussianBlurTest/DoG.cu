@@ -17,16 +17,15 @@
 
 const char* filename = "../LivingRoom.jpg";
 
-float kernelR5[6] = {0.10852806958754817, 0.10647588402345369, 0.10055043971256167, 0.09139801540527086, 0.07996681437063455, 0.06734481169430515};
-float kernelR9[10] = {0.08318856568159615, 0.08161553140356746, 0.07707358004367856, 0.0700580949850532, 0.0612958897629078, 0.05162091532851887, 0.04184482605116835, 0.03264970400357284, 0.02452096257892869, 0.017726213001806112};
-
 enum pxColour{
   RED = 0,
   GREEN,
   BLUE
 };
 
-enum pxColour colour; 
+enum pxColour colour;
+
+float kernel[5] = {0.0f};
 
 unsigned char getPixelColour(int x, int y, int width, int height, int numChannels, pxColour colour, unsigned char *data)
 {
@@ -51,32 +50,35 @@ void setPixelColour(int x, int y, int width, int height, int numChannels, pxColo
   }
 }
 
+void CreateGaussianKernel(float sigma)
+{
+  //float kernel[5];
+  float sum = 0.0f;
+  float mean = 8/2.0f; //8 = 1-radius. Dont include centre pixel
+  float x = 0.0f;
+
+  for(int i = 0; i<9;i++)
+  {
+    x = i - mean;
+    kernel[i] = std::exp(-(x*x) / (2*sigma*sigma)); //No need for 1 over 2*pi*sigma squared term, as will normalise after
+    sum += kernel[i];
+  }
+
+  //Normalise
+  for(int i= 0; i<9; i++)
+  {
+    kernel[i] /= sum;
+    printf("Normalised kernel: i = %f\n", kernel[i]);
+  }
+}
+
 void ApplyGaussianBlur(unsigned char *inputData, int kernelRadius, int inputHeight, int inputWidth, int inputChannels)
 {
-  //TODO pass in image struct/object, with all info
   unsigned char output_red_h = 0, output_green_h = 0, output_blue_h = 0;
   unsigned char output_red_v = 0, output_green_v = 0, output_blue_v = 0;
 
   int imageSize = inputHeight*inputWidth*inputChannels;
   int rowIdx = 0, colIdx = 0;
-  float *kernel;
-
-  if(kernelRadius == 5)
-  {
-    kernel = kernelR5;
-    printf("kernelR5, 0 = %f\n", kernel[0]);
-  }
-
-  else if(kernelRadius == 9)
-  {
-    kernel = kernelR9;
-    printf("kernelR9, 0 = %f\n", kernel[0]);
-  }
-
-  else{
-    printf("Unknown kernel\n");
-    return;
-  }
 
   unsigned char *tempData = new unsigned char[imageSize]; 
   if(tempData == NULL ) {
@@ -84,33 +86,28 @@ void ApplyGaussianBlur(unsigned char *inputData, int kernelRadius, int inputHeig
     return;
   }
 
-  while(rowIdx<inputHeight) //Scan rows top to bottom
-  {
+  while(rowIdx<inputHeight){ //Scan rows top to bottom
+
     //Get middle (current) pixel colour
     output_red_h = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, inputData) * kernel[0];
     output_green_h = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, inputData) * kernel[0];
     output_blue_h = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, inputData) * kernel[0];
 
     //Blur horizontal pixels
-    for(int k = 1; k<=kernelRadius; k++)
+    for(int k = 1; k<kernelRadius; k++)
     {
-      output_red_h += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, RED, inputData) * kernel[k]; //px to the right 
-      output_red_h += getPixelColour(colIdx-k, rowIdx, inputWidth, inputHeight, inputChannels, RED, inputData) * kernel[k]; //px to the left
-
+      output_red_h += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, RED, inputData) * kernel[k];
       output_green_h += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, inputData) * kernel[k];
-      output_green_h += getPixelColour(colIdx-k, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, inputData) * kernel[k];
-
       output_blue_h += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, inputData) * kernel[k];
-      output_blue_h += getPixelColour(colIdx-k, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, inputData) * kernel[k];
     }
 
-    //Write horiz pixels
+    //Write result
     setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, tempData, (output_red_h));
     setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, tempData, (output_green_h));
     setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, tempData, (output_blue_h));
 
     colIdx++; //Move to next pixel in row
-    if(colIdx>=inputWidth) 
+    if(colIdx>=inputWidth)
     {
       rowIdx++;
       colIdx = 0; //new row, reset cols
@@ -128,19 +125,13 @@ void ApplyGaussianBlur(unsigned char *inputData, int kernelRadius, int inputHeig
       output_green_v = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, tempData) * kernel[0];
       output_blue_v = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, tempData) * kernel[0];
 
-      for(int k = 1; k<=kernelRadius;k++)
+      for(int k = 1; k<kernelRadius;k++)
       {
-        output_red_v += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, RED, tempData) * kernel[k]; //px above
-        output_red_v += getPixelColour(colIdx, rowIdx-k, inputWidth, inputHeight, inputChannels, RED, tempData) * kernel[k]; //px below
-
+        output_red_v += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, RED, tempData) * kernel[k];
         output_green_v += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, GREEN, tempData) * kernel[k];
-        output_green_v += getPixelColour(colIdx, rowIdx-k, inputWidth, inputHeight, inputChannels, GREEN, tempData) * kernel[k];
-
         output_blue_v += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, BLUE, tempData) * kernel[k];
-        output_blue_v += getPixelColour(colIdx, rowIdx-k, inputWidth, inputHeight, inputChannels, BLUE, tempData) * kernel[k];
       }
 
-      //Write vert pixels
       setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, inputData, (output_red_v));
       setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, GREEN, inputData, (output_green_v));
       setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, inputData, (output_blue_v));
@@ -161,9 +152,6 @@ void CalculateDoG(unsigned char *inputData, int inputWidth, int inputHeight, int
   unsigned char image1_px = 0, image2_px = 0;
   int imageSize = inputHeight*inputWidth*inputChannels;
 
-  //Won't modify orig image data, copy to new memory and write result to output mem passed in.
-  // Later will be loop to "build pyramid" and return that, will keep all mem inside. 
-  //Cleaner not to modify orig data in case needed elsewhere. Later could work on orig data to avoid memcpy, prob faster (def on GPU)
   unsigned char *imageGaussian1 = new unsigned char[imageSize]; 
   unsigned char *imageGaussian2 = new unsigned char[imageSize]; 
   if(imageGaussian1 == NULL || imageGaussian2 == NULL) {
@@ -172,8 +160,10 @@ void CalculateDoG(unsigned char *inputData, int inputWidth, int inputHeight, int
   }
 
   memcpy(imageGaussian1, inputData, imageSize);
-  ApplyGaussianBlur(imageGaussian1, 5, inputHeight, inputWidth, inputChannels);
+  CreateGaussianKernel(0.2f);
+  ApplyGaussianBlur(imageGaussian1, 9, inputHeight, inputWidth, inputChannels);
 
+  CreateGaussianKernel(0.1f);
   memcpy(imageGaussian2, inputData, imageSize);
   ApplyGaussianBlur(imageGaussian2, 9, inputHeight, inputWidth, inputChannels);
 
@@ -194,7 +184,7 @@ void CalculateDoG(unsigned char *inputData, int inputWidth, int inputHeight, int
       setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, BLUE, outputDoG, (image1_px - image2_px));
 
       colIdx++;
-      if(colIdx>=inputWidth) 
+      if(colIdx>=inputWidth)
       {
           rowIdx++;
           colIdx = 0;
@@ -234,11 +224,15 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    CalculateDoG(inputData,inputWidth, inputHeight, inputChannels, outputData);
+    //test
+    CreateGaussianKernel(3.0f);
+    ApplyGaussianBlur(inputData, 9, inputHeight, inputWidth, inputChannels);
+    
+    //CalculateDoG(inputData,inputWidth, inputHeight, inputChannels, outputData);
 
     //Write result to file
     printf("Write to file\n");
-    success = stbi_write_jpg("DoGoutput.jpg", outputWidth, outputHeight, outputChannels, outputData, 100);
+    success = stbi_write_jpg("DoGoutput.jpg", outputWidth, outputHeight, outputChannels, inputData, 100);
     if(success){
         printf("Wrote file OK! x:%d y:%d channels:%d\n", outputWidth, outputHeight, outputChannels);
     }
