@@ -4,7 +4,6 @@
 // * History:    Daire O'Neill, December 2023
 // -----------------------------------------------------------------------------
 
-#include <cmath>
 #include <iostream>
 #include <string>
 #include <stdlib.h>
@@ -41,6 +40,11 @@ int main(int argc, char **argv) {
         std::cout << "Unable to allocate memory for output image\n" << std::endl;
         exit(1);
     }
+
+    SIFT_CUDA sift;
+
+    sift.CreateGaussianKernel(4.0f);
+    sift.ApplyGaussianBlur(inputData, inputHeight, inputWidth, inputChannels);
 
     //Write result to file
     std::cout <<"Write to file\n" << std::endl;

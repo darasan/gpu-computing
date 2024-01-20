@@ -8,18 +8,27 @@
 #define SIFT_CUDA_H
 
 #include <iostream>
+
 using namespace std;
+
+ enum pxColour{
+        RED = 0,
+        GREEN,
+        BLUE
+    };
  
 class SIFT_CUDA {
     private:
-        int private_variable;
-    
-    protected:
-        int protected_variable;
+        static const int kernelSize = 9;
+        float kernel[kernelSize] = {0.0f};
+        
+        unsigned char getPixelColour(int x, int y, int width, int height, int numChannels, pxColour colour, unsigned char *data);
+        void setPixelColour(int x, int y, int width, int height, int numChannels, pxColour colour, unsigned char *data, unsigned char value);
     
     public:
-        SIFT_CUDA();
-        void display();
+        SIFT_CUDA(){};
+        void CreateGaussianKernel(float sigma);
+        void ApplyGaussianBlur(unsigned char *inputData, int inputHeight, int inputWidth, int inputChannels);
 };
 
 #endif
