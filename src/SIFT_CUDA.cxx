@@ -55,13 +55,16 @@ void SIFT_CUDA::CreateGaussianKernel(float sigma)
   }
 }
 
-void SIFT_CUDA::ApplyGaussianBlur(unsigned char *inputData, int inputWidth, int inputHeight, int inputChannels)
+void SIFT_CUDA::ApplyGaussianBlur(Image img)
 {
- 
   unsigned char output_red_h = 0, output_green_h = 0, output_blue_h = 0;
   unsigned char output_red_v = 0, output_green_v = 0, output_blue_v = 0;
 
-  int imageSize = inputHeight*inputWidth*inputChannels;
+  int imageSize = img.size();
+  int width = img.width();
+  int height = img.height();
+  int chans = img.numChannels();
+  unsigned char *data = img.data();
   int rowIdx = 0, colIdx = 0;
 
   unsigned char *tempData = new unsigned char[imageSize]; 
@@ -70,59 +73,60 @@ void SIFT_CUDA::ApplyGaussianBlur(unsigned char *inputData, int inputWidth, int 
     return;
   }
 
-  while(rowIdx<inputHeight){ //Scan rows top to bottom
+  while(rowIdx<height){ //Scan rows top to bottom
 
     //Get middle pixel value
-    output_red_h    = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::RED, inputData) * kernel[0];
-    output_green_h  = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::GREEN, inputData) * kernel[0];
-    output_blue_h   = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::BLUE, inputData) * kernel[0];
+    output_red_h    = getPixelColour(colIdx, rowIdx, width, height, chans, RED, data) * kernel[0];
+    output_green_h  = getPixelColour(colIdx, rowIdx, width, height, chans, GREEN, data) * kernel[0];
+    output_blue_h   = getPixelColour(colIdx, rowIdx, width, height, chans, BLUE, data) * kernel[0];
 
     //Blur horizontal pixels
     for(int k = 1; k<kernelSize; k++)
     {
-      output_red_h    += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::RED, inputData) * kernel[k];
-      output_green_h  += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::GREEN, inputData) * kernel[k];
-      output_blue_h   += getPixelColour(colIdx+k, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::BLUE, inputData) * kernel[k];
+      output_red_h    += getPixelColour(colIdx+k, rowIdx, width, height, chans, RED, data) * kernel[k];
+      output_green_h  += getPixelColour(colIdx+k, rowIdx, width, height, chans, GREEN, data) * kernel[k];
+      output_blue_h   += getPixelColour(colIdx+k, rowIdx, width, height, chans, BLUE, data) * kernel[k];
     }
 
     //Write result
-    setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::RED, tempData, (output_red_h));
-    setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::GREEN, tempData, (output_green_h));
-    setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::BLUE, tempData, (output_blue_h));
+    setPixelColour(colIdx, rowIdx, width, height, chans, RED, tempData, (output_red_h));
+    setPixelColour(colIdx, rowIdx, width, height, chans, GREEN, tempData, (output_green_h));
+    setPixelColour(colIdx, rowIdx, width, height, chans, BLUE, tempData, (output_blue_h));
 
 
-    colIdx++; //Move to next pixel in row
-    if(colIdx>=inputWidth)
+    colIdx++;
+    if(colIdx>=width)
     {
       rowIdx++;
       colIdx = 0; //new row, reset cols
     }
   }
 
-    //Clear old data, repeat for vertical component. Use blurred horiz data as starting point
-    memset(inputData,0,imageSize);
+    //Repeat for vertical component. Start from blurred horiz data
+    memset(data,0,imageSize);
     rowIdx = 0;
     colIdx = 0;
 
-    while(rowIdx<inputHeight)
+    while(rowIdx<height)
     {
-      output_red_v    = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::RED, tempData) * kernel[0];
-      output_green_v  = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::GREEN, tempData) * kernel[0];
-      output_blue_v   = getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::BLUE, tempData) * kernel[0];
+      output_red_v    = getPixelColour(colIdx, rowIdx, width, height, chans, RED, tempData) * kernel[0];
+      output_green_v  = getPixelColour(colIdx, rowIdx, width, height, chans, GREEN, tempData) * kernel[0];
+      output_blue_v   = getPixelColour(colIdx, rowIdx, width, height, chans, BLUE, tempData) * kernel[0];
 
       for(int k = 1; k<kernelSize;k++)
       {
-        output_red_v    += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, pxColour::RED, tempData) * kernel[k];
-        output_green_v  += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, pxColour::GREEN, tempData) * kernel[k];
-        output_blue_v   += getPixelColour(colIdx, rowIdx+k, inputWidth, inputHeight, inputChannels, pxColour::BLUE, tempData) * kernel[k];
+        output_red_v    += getPixelColour(colIdx, rowIdx+k, width, height, chans, RED, tempData) * kernel[k];
+        output_green_v  += getPixelColour(colIdx, rowIdx+k, width, height, chans, GREEN, tempData) * kernel[k];
+        output_blue_v   += getPixelColour(colIdx, rowIdx+k, width, height, chans, BLUE, tempData) * kernel[k];
       }
 
-      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::RED, inputData, (output_red_v));
-      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::GREEN, inputData, (output_green_v));
-      setPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, pxColour::BLUE, inputData, (output_blue_v));
+      //Write final result to original image
+      setPixelColour(colIdx, rowIdx, width, height, chans, RED, data, (output_red_v));
+      setPixelColour(colIdx, rowIdx, width, height, chans, GREEN, data, (output_green_v));
+      setPixelColour(colIdx, rowIdx, width, height, chans, BLUE, data, (output_blue_v));
 
       colIdx++;
-      if(colIdx>=inputWidth)
+      if(colIdx>=width)
       {
         rowIdx++;
         colIdx = 0;

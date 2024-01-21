@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
 
     SIFT_CUDA sift;
     sift.CreateGaussianKernel(4.0f);
-    sift.ApplyGaussianBlur(img.data(), img.width(), img.height(), img.numChannels());
+    sift.ApplyGaussianBlur(img);
 
     //Set params for output file
     int outputWidth = img.width();

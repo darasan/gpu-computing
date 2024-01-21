@@ -52,7 +52,7 @@ class SIFT_CUDA {
     public:
         SIFT_CUDA(){};
         void CreateGaussianKernel(float sigma);
-        void ApplyGaussianBlur(unsigned char *inputData, int inputWidth, int inputHeight, int inputChannels);
+        void ApplyGaussianBlur(Image img);
 };
 
 #endif
