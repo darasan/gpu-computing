@@ -11,7 +11,6 @@
 
 using namespace std;
 
-
 unsigned char SIFT_CUDA::getPixelColour(int x, int y, int width, int height, int numChannels, pxColour colour, unsigned char *data)
 {
   if (x < 0 || x >= width || y < 0 ||  y >= height || numChannels<0 ){
@@ -56,8 +55,9 @@ void SIFT_CUDA::CreateGaussianKernel(float sigma)
   }
 }
 
-void SIFT_CUDA::ApplyGaussianBlur(unsigned char *inputData, int inputHeight, int inputWidth, int inputChannels)
+void SIFT_CUDA::ApplyGaussianBlur(unsigned char *inputData, int inputWidth, int inputHeight, int inputChannels)
 {
+ 
   unsigned char output_red_h = 0, output_green_h = 0, output_blue_h = 0;
   unsigned char output_red_v = 0, output_green_v = 0, output_blue_v = 0;
 

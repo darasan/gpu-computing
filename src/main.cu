@@ -20,20 +20,25 @@ int main(int argc, char **argv) {
 
     //Load image
     int inputWidth, inputHeight, inputChannels;
-  
     unsigned char *inputData = stbi_load(filename, &inputWidth, &inputHeight, &inputChannels, 0);
-    int inputImageSize = (inputWidth * inputHeight * inputChannels);
 
     if(inputData == NULL){
-        std::cout << "Error loading images\n" << std::endl;
+        std::cout << "Error loading image\n" << std::endl;
         exit(1);
     }
 
-    //Calculate num channels and size for output file
-    int outputChannels = inputChannels = 3;
-    int outputWidth = inputWidth;
-    int outputHeight = inputHeight;
-    int outputImageSize = (outputWidth * outputHeight * outputChannels);
+    //Create Image object
+    Image img = Image(inputWidth, inputHeight, inputChannels, inputData);
+
+    SIFT_CUDA sift;
+    sift.CreateGaussianKernel(4.0f);
+    sift.ApplyGaussianBlur(img.data(), img.width(), img.height(), img.numChannels());
+
+    //Set params for output file
+    int outputWidth = img.width();
+    int outputHeight = img.height();
+    int outputChannels = img.numChannels();
+    int outputImageSize = img.size();
 
     unsigned char *outputData = new unsigned char[outputImageSize];
     if(outputData == NULL) {
@@ -41,16 +46,11 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    SIFT_CUDA sift;
-
-    sift.CreateGaussianKernel(4.0f);
-    sift.ApplyGaussianBlur(inputData, inputHeight, inputWidth, inputChannels);
-
     //Write result to file
     std::cout <<"Write to file\n" << std::endl;
     int success = stbi_write_jpg("output.jpg", outputWidth, outputHeight, outputChannels, inputData, 100);
     if(success){
-        std::cout <<"Wrote file OK! w:" << outputWidth << " h: " << outputHeight << "chans: " << outputChannels << std::endl;
+        std::cout <<"Wrote file OK! w:" << outputWidth << " h: " << outputHeight << " chans: " << outputChannels << std::endl;
     }
 
     else{

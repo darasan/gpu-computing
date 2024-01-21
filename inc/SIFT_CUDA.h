@@ -11,12 +11,36 @@
 
 using namespace std;
 
- enum pxColour{
+enum pxColour{
         RED = 0,
         GREEN,
         BLUE
     };
- 
+
+class Image {
+    private:
+        int _width;
+        int _height;
+        int _numChannels;
+        int _size;
+        unsigned char *_data;
+
+    public:
+        Image(int width, int height, int numChannels, unsigned char *data){
+            this->_width = width;
+            this->_height = height;
+            this->_numChannels = numChannels;
+            this->_size = (width*height*numChannels);
+            this->_data = data;
+        };
+
+        int width() const {return _width;} //read-only
+        int height() const {return _height;}
+        int numChannels() const {return _numChannels;}
+        int size() const {return _size;}
+        unsigned char* data() {return _data;} //read/write
+};
+
 class SIFT_CUDA {
     private:
         static const int kernelSize = 9;
@@ -28,7 +52,7 @@ class SIFT_CUDA {
     public:
         SIFT_CUDA(){};
         void CreateGaussianKernel(float sigma);
-        void ApplyGaussianBlur(unsigned char *inputData, int inputHeight, int inputWidth, int inputChannels);
+        void ApplyGaussianBlur(unsigned char *inputData, int inputWidth, int inputHeight, int inputChannels);
 };
 
 #endif
