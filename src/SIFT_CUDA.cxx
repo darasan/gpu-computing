@@ -11,26 +11,26 @@
 
 using namespace std;
 
-unsigned char SIFT_CUDA::getPixelColour(int x, int y, int width, int height, int numChannels, pxColour colour, unsigned char *data)
+unsigned char Image::getPixelValue(int x, int y, pxChannel channel)
 {
-  if (x < 0 || x >= width || y < 0 ||  y >= height || numChannels<0 ){
-    //printf("Error getPixelColour: out of bounds\n");
+  if (x < 0 || x >= this->_width || y < 0 ||  y >= this->_height || channel > this->_numChannels){
+    //printf("Error getPixelValue: out of bounds\n");
     return 0;
   }
 
   else{
-    return *(data + ((x + y*width) * numChannels) + (int) colour);
+    return *(this->_data + ((x + y * (this->_width)) * (this->_numChannels)) + (int) channel);
   }
 }
 
-void SIFT_CUDA::setPixelColour(int x, int y, int width, int height, int numChannels, pxColour colour, unsigned char *data, unsigned char value)
+void Image::setPixelValue(int x, int y, pxChannel channel, unsigned char value)
 {
-  if (x < 0 || x >= width || y < 0 ||  y >= height || numChannels<0 ){
-    //printf("Error setPixelColour: out of bounds x:%d y:%d chans:%d colour%d\n", x,y,numChannels,colour);
+  if (x < 0 || x >= this->_width || y < 0 ||  y >= this->_height || channel > this->_numChannels){
+    //printf("Error setPixelValue: out of bounds x:%d y:%d chans:%d colour%d\n", x,y,numChannels,colour);
   }
 
   else{
-    *(data + ((x + y*width) * numChannels) + (int) colour) = value;
+    *(this->_data + ((x + y*(this->_width)) * (this->_numChannels)) + (int) channel) = value;
   }
 }
 
@@ -67,32 +67,32 @@ void SIFT_CUDA::ApplyGaussianBlur(Image img)
   unsigned char *data = img.data();
   int rowIdx = 0, colIdx = 0;
 
-  unsigned char *tempData = new unsigned char[imageSize]; 
-  if(tempData == NULL ) {
-        std::cout << "ApplyGaussianBlur: unable to allocate memory for output image\n" << std::endl;
+  //unsigned char *tempData = new unsigned char[imageSize]; 
+  Image tempImg = Image(width, height, chans);
+  if(tempImg.data() == NULL ) {
+        std::cout << "Unable to create temp image\n" << std::endl;
     return;
   }
 
   while(rowIdx<height){ //Scan rows top to bottom
 
     //Get middle pixel value
-    output_red_h    = getPixelColour(colIdx, rowIdx, width, height, chans, RED, data) * kernel[0];
-    output_green_h  = getPixelColour(colIdx, rowIdx, width, height, chans, GREEN, data) * kernel[0];
-    output_blue_h   = getPixelColour(colIdx, rowIdx, width, height, chans, BLUE, data) * kernel[0];
+    output_red_h    = img.getPixelValue(colIdx, rowIdx, RED) * kernel[0];
+    output_green_h  = img.getPixelValue(colIdx, rowIdx, GREEN) * kernel[0];
+    output_blue_h   = img.getPixelValue(colIdx, rowIdx, BLUE) * kernel[0];
 
     //Blur horizontal pixels
     for(int k = 1; k<kernelSize; k++)
     {
-      output_red_h    += getPixelColour(colIdx+k, rowIdx, width, height, chans, RED, data) * kernel[k];
-      output_green_h  += getPixelColour(colIdx+k, rowIdx, width, height, chans, GREEN, data) * kernel[k];
-      output_blue_h   += getPixelColour(colIdx+k, rowIdx, width, height, chans, BLUE, data) * kernel[k];
+      output_red_h    += img.getPixelValue(colIdx+k, rowIdx, RED) * kernel[k];
+      output_green_h  += img.getPixelValue(colIdx+k, rowIdx, GREEN) * kernel[k];
+      output_blue_h   += img.getPixelValue(colIdx+k, rowIdx, BLUE) * kernel[k];
     }
 
-    //Write result
-    setPixelColour(colIdx, rowIdx, width, height, chans, RED, tempData, (output_red_h));
-    setPixelColour(colIdx, rowIdx, width, height, chans, GREEN, tempData, (output_green_h));
-    setPixelColour(colIdx, rowIdx, width, height, chans, BLUE, tempData, (output_blue_h));
-
+    //Write result to temp image
+    tempImg.setPixelValue(colIdx, rowIdx, RED, (output_red_h));
+    tempImg.setPixelValue(colIdx, rowIdx, GREEN, (output_green_h));
+    tempImg.setPixelValue(colIdx, rowIdx, BLUE, (output_blue_h));
 
     colIdx++;
     if(colIdx>=width)
@@ -102,28 +102,28 @@ void SIFT_CUDA::ApplyGaussianBlur(Image img)
     }
   }
 
-    //Repeat for vertical component. Start from blurred horiz data
+    //Repeat for vertical component. Start from blurred horiz data in tempImage
     memset(data,0,imageSize);
     rowIdx = 0;
     colIdx = 0;
 
     while(rowIdx<height)
     {
-      output_red_v    = getPixelColour(colIdx, rowIdx, width, height, chans, RED, tempData) * kernel[0];
-      output_green_v  = getPixelColour(colIdx, rowIdx, width, height, chans, GREEN, tempData) * kernel[0];
-      output_blue_v   = getPixelColour(colIdx, rowIdx, width, height, chans, BLUE, tempData) * kernel[0];
+      output_red_v    = tempImg.getPixelValue(colIdx, rowIdx, RED) * kernel[0];
+      output_green_v  = tempImg.getPixelValue(colIdx, rowIdx, GREEN) * kernel[0];
+      output_blue_v   = tempImg.getPixelValue(colIdx, rowIdx, BLUE) * kernel[0];
 
       for(int k = 1; k<kernelSize;k++)
       {
-        output_red_v    += getPixelColour(colIdx, rowIdx+k, width, height, chans, RED, tempData) * kernel[k];
-        output_green_v  += getPixelColour(colIdx, rowIdx+k, width, height, chans, GREEN, tempData) * kernel[k];
-        output_blue_v   += getPixelColour(colIdx, rowIdx+k, width, height, chans, BLUE, tempData) * kernel[k];
+        output_red_v    += tempImg.getPixelValue(colIdx, rowIdx+k, RED) * kernel[k];
+        output_green_v  += tempImg.getPixelValue(colIdx, rowIdx+k, GREEN) * kernel[k];
+        output_blue_v   += tempImg.getPixelValue(colIdx, rowIdx+k, BLUE) * kernel[k];
       }
 
       //Write final result to original image
-      setPixelColour(colIdx, rowIdx, width, height, chans, RED, data, (output_red_v));
-      setPixelColour(colIdx, rowIdx, width, height, chans, GREEN, data, (output_green_v));
-      setPixelColour(colIdx, rowIdx, width, height, chans, BLUE, data, (output_blue_v));
+      img.setPixelValue(colIdx, rowIdx, RED, (output_red_v));
+      img.setPixelValue(colIdx, rowIdx, GREEN, (output_green_v));
+      img.setPixelValue(colIdx, rowIdx, BLUE, (output_blue_v));
 
       colIdx++;
       if(colIdx>=width)
@@ -132,7 +132,7 @@ void SIFT_CUDA::ApplyGaussianBlur(Image img)
         colIdx = 0;
       }
     }
-    delete(tempData);
+    tempImg.FreeImageData();
 }
 
 

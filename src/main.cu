@@ -34,23 +34,11 @@ int main(int argc, char **argv) {
     sift.CreateGaussianKernel(4.0f);
     sift.ApplyGaussianBlur(img);
 
-    //Set params for output file
-    int outputWidth = img.width();
-    int outputHeight = img.height();
-    int outputChannels = img.numChannels();
-    int outputImageSize = img.size();
-
-    unsigned char *outputData = new unsigned char[outputImageSize];
-    if(outputData == NULL) {
-        std::cout << "Unable to allocate memory for output image\n" << std::endl;
-        exit(1);
-    }
-
     //Write result to file
     std::cout <<"Write to file\n" << std::endl;
-    int success = stbi_write_jpg("output.jpg", outputWidth, outputHeight, outputChannels, inputData, 100);
+    int success = stbi_write_jpg("output.jpg", img.width(), img.height(), img.numChannels(), img.data(), 100);
     if(success){
-        std::cout <<"Wrote file OK! w:" << outputWidth << " h: " << outputHeight << " chans: " << outputChannels << std::endl;
+        std::cout <<"Wrote file OK! w:" << img.width() << " h: " << img.height() << " chans: " << img.numChannels() << std::endl;
     }
 
     else{
@@ -58,7 +46,6 @@ int main(int argc, char **argv) {
     }
 
     stbi_image_free(inputData);
-    delete(outputData);
 
     exit(0);
 }
