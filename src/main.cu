@@ -31,17 +31,16 @@ int main(int argc, char **argv) {
     Image img = Image(inputWidth, inputHeight, inputChannels, inputData);
 
     SIFT_CUDA sift;
-    sift.CreateGaussianKernel(1.0f);
+    sift.CreateGaussianKernel(3.2f);
     sift.ApplyGaussianBlur(img);
 
-    //Resize image
-    Image resized = img.Resize(img.width()/4,img.height()/4);
+    img.Resize(img.width()/2, img.height()/2);
 
     //Write result to file
     std::cout <<"Write to file\n" << std::endl;
-    int success = stbi_write_jpg("output.jpg", resized.width(), resized.height(), resized.numChannels(), resized.data(), 100);
+    int success = stbi_write_jpg("output.jpg", img.width(), img.height(), img.numChannels(), img.data(), 100);
     if(success){
-        std::cout <<"Wrote file OK! w:" << resized.width() << " h: " << resized.height() << " chans: " << resized.numChannels() << std::endl;
+        std::cout <<"Wrote file OK! w:" << img.width() << " h: " << img.height() << " chans: " << img.numChannels() << std::endl;
     }
 
     else{

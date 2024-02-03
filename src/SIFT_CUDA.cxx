@@ -6,8 +6,6 @@
 
 #include <iostream>
 #include "SIFT_CUDA.h"
-#include <cmath>
-#include <cstring>
 
 using namespace std;
 
@@ -67,7 +65,6 @@ void SIFT_CUDA::ApplyGaussianBlur(Image img)
   unsigned char *data = img.data();
   int rowIdx = 0, colIdx = 0;
 
-  //unsigned char *tempData = new unsigned char[imageSize]; 
   Image tempImg = Image(width, height, chans);
   if(tempImg.data() == NULL ) {
         std::cout << "Unable to create temp image\n" << std::endl;

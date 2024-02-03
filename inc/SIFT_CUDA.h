@@ -59,6 +59,18 @@ class Image {
         unsigned char getPixelValue(int x, int y, pxChannel channel);
         void setPixelValue(int x, int y, pxChannel channel, unsigned char value);
 
+        void setPixelValueOnData(int x, int y, pxChannel channel, int width, int height, int numChannels, unsigned char value, unsigned char* data)
+        {
+            if (x < 0 || x >= width || y < 0 ||  y >= height || channel > numChannels){
+                printf("Error setPixelValueOnData: out of bounds x:%d y:%d chans:%d colour%d\n", x,y, numChannels, (int) channel);
+                return;
+            }
+
+            else{
+                *(data + ((x + y*(width)) * (numChannels)) + (int) channel) = value;
+            }
+        }
+
         //Map coordinate from 0-current_max range to 0-new_max range
         float MapCoordinate(float new_max, float current_max, float coord)
         {
@@ -67,21 +79,33 @@ class Image {
             return a*coord + b;
         }
 
-        Image Resize(int new_w, int new_h)
+        void Resize(int new_w, int new_h)
         {
-            Image resized(new_w, new_h, this->_numChannels);
+            unsigned char* resized_data = new unsigned char[new_w*new_h*(this->_numChannels)];
+            if(resized_data == NULL ) {
+                std::cout << "Unable to create memory for resized image\n" << std::endl;
+            }
+
             float value = 0;
             for (int x = 0; x < new_w; x++) {
                 for (int y = 0; y < new_h; y++) {
-                    for (int c = 0; c < resized.numChannels(); c++) {
+                    for (int c = 0; c < this->_numChannels; c++) {
                         float old_x = MapCoordinate(this->_width, new_w, x);
                         float old_y = MapCoordinate(this->_height, new_h, y);
                         value = InterpolateBilinear(*this, old_x, old_y, (pxChannel) c);
-                        resized.setPixelValue(x, y, (pxChannel) c, value); 
+                        setPixelValueOnData(x, y, (pxChannel) c, new_w, new_h, this->_numChannels, value, resized_data); 
                     }
                 }
             }
-            return resized;
+
+            //Update sizes
+            this->_width = new_w;
+            this->_height = new_h;
+            this->_size = (new_w*new_h*(this->_numChannels));
+
+            //Reassign data
+            delete[] this->_data;
+            this->_data = resized_data;
         }
 
         float InterpolateBilinear(Image& img, float x, float y, pxChannel c)
