@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <cmath>
+#include <cstring>
 
 using namespace std;
 
@@ -36,12 +37,14 @@ class Image {
             this->_data =  new unsigned char[_size];
         };
 
+        //Create image from input data. Copies data to own memory
         Image(int width, int height, int numChannels, unsigned char *data){
             this->_width = width;
             this->_height = height;
             this->_numChannels = numChannels;
             this->_size = (width*height*numChannels);
-            this->_data = data;
+            this->_data =  new unsigned char[_size];
+            std::memcpy(this->_data,data,_size);
         };
 
         ~Image(){std::cout << "destructor\n" << std::endl;};

@@ -49,6 +49,7 @@ int main(int argc, char **argv) {
     }
 
     stbi_image_free(inputData);
+    img.FreeImageData();
 
     exit(0);
 }
