@@ -4,10 +4,84 @@
 // * History:    Daire O'Neill, December 2023
 // -----------------------------------------------------------------------------
 
-#include <iostream>
-#include "SIFT_CUDA.h"
+#include "SIFT_CUDA.hxx"
+
+#ifndef STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+#endif
+
+#ifndef STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h" 
+#endif
 
 using namespace std;
+
+void GaussianPyramid::WriteAllImagesToFile(void)
+{
+  int success = 0;
+  std::cout <<"WriteAllImagesToFile: " << this->octaves.size() << " octaves" << std::endl;
+
+  for(int i=0; i<this->octaves.size();i++)
+  {
+      string filename {"image"+std::to_string(i) + ".jpg"};
+      success = stbi_write_jpg(filename.c_str(), this->octaves[i].width(), this->octaves[i].height(), this->octaves[i].numChannels(), this->octaves[i].data(), 100);
+
+      //std::cout <<"Wrote image " + std::to_string(i) + " to file" << std::endl;
+      if(success){
+          std::cout <<"Wrote file: " << filename << " w:" << this->octaves[i].width() << " h: " << this->octaves[i].height() << " chans: " << this->octaves[i].numChannels() << std::endl;
+      }
+
+      else{
+          std::cout <<"Error writing file: " << filename << std::endl;
+      }
+  }
+}
+
+void SIFT_CUDA::BuildGaussianPyramid(Image baseImg)
+{
+  //Load base image
+  this->gPyramid.octaves.push_back(baseImg);
+  int numImages = this->gPyramid.numImagesPerOctave();
+
+
+  for(int i= 1; i<numImages; i++){
+    Image img = Image(baseImg.width(), baseImg.height(), baseImg.numChannels(), baseImg.data());
+    this->CreateGaussianKernel(0.8f*i);
+    this->ApplyGaussianBlur(img);                           //Blur first, then resize
+    img.Resize((img.width())/(2*i), (img.height())/(2*i)); 
+    img.Resize((img.width())*(2*i), (img.height())*(2*i)); //Subsample (halve size, than back up)
+    this->gPyramid.octaves.push_back(img);
+  }
+}
+
+Image::Image(std::string filename)
+{
+  std::cout << "Load image from file" << std::endl;
+
+  int inputWidth, inputHeight, numChannels;
+  unsigned char *inputData = stbi_load(filename.c_str(), &inputWidth, &inputHeight, &numChannels, 0);
+
+  if(inputData == NULL){
+      std::cout << "Error loading image" << std::endl;
+      exit(1);
+  }
+
+  else{
+      std::cout << "Loaded image: " << filename << std::endl;
+  }
+
+  this->_width = inputWidth;
+  this->_height = inputHeight;
+  this->_numChannels = numChannels;
+  this->_size = (inputWidth*inputHeight*numChannels);
+  this->_data =  new unsigned char[_size];
+  std::memcpy(this->_data,inputData,_size);
+
+  stbi_image_free(inputData); //have own copy, don't need original
+
+};
 
 unsigned char Image::getPixelValue(int x, int y, pxChannel channel)
 {
@@ -24,7 +98,7 @@ unsigned char Image::getPixelValue(int x, int y, pxChannel channel)
 void Image::setPixelValue(int x, int y, pxChannel channel, unsigned char value)
 {
   if (x < 0 || x >= this->_width || y < 0 ||  y >= this->_height || channel > this->_numChannels){
-    //printf("Error setPixelValue: out of bounds x:%d y:%d chans:%d colour%d\n", x,y,numChannels,colour);
+    //printf("Error setPixelValue: out of bounds x:%d y:%d chans:%d colour:%d\n", x, y, this->_numChannels, channel);
   }
 
   else{
@@ -65,7 +139,8 @@ void SIFT_CUDA::ApplyGaussianBlur(Image img)
   unsigned char *data = img.data();
   int rowIdx = 0, colIdx = 0;
 
-  Image tempImg = Image(width, height, chans);
+
+  Image tempImg = Image(width, height, chans, img.data());
   if(tempImg.data() == NULL ) {
         std::cout << "Unable to create temp image\n" << std::endl;
     return;

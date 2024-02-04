@@ -7,48 +7,22 @@
 #include <iostream>
 #include <string>
 #include <stdlib.h>
-#include "SIFT_CUDA.h"
+#include "SIFT_CUDA.hxx"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h" 
 
 const char* filename = "../img/chartreuse.jpg";
 
 int main(int argc, char **argv) {
 
-    //Load image
-    int inputWidth, inputHeight, inputChannels;
-    unsigned char *inputData = stbi_load(filename, &inputWidth, &inputHeight, &inputChannels, 0);
+    Image img = Image(filename);
 
-    if(inputData == NULL){
-        std::cout << "Error loading image\n" << std::endl;
-        exit(1);
-    }
-
-    //Create Image object
-    Image img = Image(inputWidth, inputHeight, inputChannels, inputData);
-
+    //Buil Gaussian pyramid from base image
     SIFT_CUDA sift;
-    sift.CreateGaussianKernel(3.2f);
-    sift.ApplyGaussianBlur(img);
+    sift.BuildGaussianPyramid(img);
 
-    img.Resize(img.width()/2, img.height()/2);
+    std::cout <<"pyramid numOctaves: " << sift.gPyramid.numOctaves() << " numImagesPerOctave: " <<  sift.gPyramid.numImagesPerOctave() << " num elements: " << sift.gPyramid.octaves.size() << std::endl;
+    sift.gPyramid.WriteAllImagesToFile();
 
-    //Write result to file
-    std::cout <<"Write to file\n" << std::endl;
-    int success = stbi_write_jpg("output.jpg", img.width(), img.height(), img.numChannels(), img.data(), 100);
-    if(success){
-        std::cout <<"Wrote file OK! w:" << img.width() << " h: " << img.height() << " chans: " << img.numChannels() << std::endl;
-    }
-
-    else{
-        std::cout <<"Error writing output file\n" << std::endl;
-    }
-
-    stbi_image_free(inputData);
-    img.FreeImageData();
-
+    //TODO free pyramid memory
     exit(0);
 }

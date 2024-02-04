@@ -1,5 +1,5 @@
 // -----------------------------------------------------------------------------
-// * Name:       SIFT_CUDA.h
+// * Name:       SIFT_CUDA.hxx
 // * Purpose:    Header file for SIFT_CUDA class 
 // * History:    Daire O'Neill, December 2023
 // -----------------------------------------------------------------------------
@@ -10,6 +10,7 @@
 #include <iostream>
 #include <cmath>
 #include <cstring>
+#include <vector>
 
 using namespace std;
 
@@ -28,17 +29,19 @@ class Image {
         unsigned char *_data;
 
     public:
+    /*
         Image(int width, int height, int numChannels){
-            std::cout << "const blank\n" << std::endl;
+            //std::cout << "const blank\n" << std::endl;
             this->_width = width;
             this->_height = height;
             this->_numChannels = numChannels;
             this->_size = (width*height*numChannels);
             this->_data =  new unsigned char[_size];
-        };
+        }; */
 
         //Create image from input data. Copies data to own memory
         Image(int width, int height, int numChannels, unsigned char *data){
+            std::cout << "Create image from data" << std::endl;
             this->_width = width;
             this->_height = height;
             this->_numChannels = numChannels;
@@ -47,9 +50,27 @@ class Image {
             std::memcpy(this->_data,data,_size);
         };
 
-        ~Image(){std::cout << "destructor\n" << std::endl;};
+        ~Image(){std::cout << "destructor" << std::endl;};
+
+        Image(std::string filename);
+
+      /*  Image(const Image& img) {
+            std::cout << "Create image from other" << std::endl;
+            this->_width = img.width();
+            this->_height = img.height();
+            this->_numChannels = img.numChannels();
+            this->_size = (img.width()*img.height()*img.numChannels());
+            this->_data =  new unsigned char[this->_size];
+            //std::memcpy(this->_data,img.data(),_size);
+            const unsigned char *imgData = img.data();
+
+            for (int i = 0; i < (this->_size); i++){
+                this->_data[i] = imgData[i];
+            }
+        } */
 
         void FreeImageData(){delete[] this->_data;}
+
         int width() const {return _width;} //read-only
         int height() const {return _height;}
         int numChannels() const {return _numChannels;}
@@ -81,6 +102,9 @@ class Image {
 
         void Resize(int new_w, int new_h)
         {
+            printf("Resize image from x:%d y:%d chans:%d\n", this->_width, this->_height, this->_numChannels);
+            printf("               to x:%d y:%d chans:%d\n", new_w, new_h, this->_numChannels);
+
             unsigned char* resized_data = new unsigned char[new_w*new_h*(this->_numChannels)];
             if(resized_data == NULL ) {
                 std::cout << "Unable to create memory for resized image\n" << std::endl;
@@ -106,6 +130,8 @@ class Image {
             //Reassign data
             delete[] this->_data;
             this->_data = resized_data;
+
+            printf("Resized to x:%d y:%d size:%d\n\n\n", this->_width, this->_height, this->_size);
         }
 
         float InterpolateBilinear(Image& img, float x, float y, pxChannel c)
@@ -125,6 +151,20 @@ class Image {
         }
 };
 
+
+class GaussianPyramid {
+
+    public:
+        int _numOctaves = 8;
+        int _numImagesPerOctave = 6;
+        std::vector<Image> octaves;
+
+        GaussianPyramid(){};
+        void WriteAllImagesToFile(void);
+        int numOctaves() const {return _numOctaves;} 
+        int numImagesPerOctave() const {return _numImagesPerOctave;} 
+};
+
 class SIFT_CUDA {
     private:
         static const int kernelSize = 9;
@@ -134,6 +174,9 @@ class SIFT_CUDA {
         SIFT_CUDA(){};
         void CreateGaussianKernel(float sigma);
         void ApplyGaussianBlur(Image img);
+        void BuildGaussianPyramid(Image baseImage);
+
+        GaussianPyramid gPyramid;
 };
 
 #endif
