@@ -50,8 +50,8 @@ void SIFT_CUDA::BuildGaussianPyramid(Image baseImg)
     Image img = Image(baseImg.width(), baseImg.height(), baseImg.numChannels(), baseImg.data());
     this->CreateGaussianKernel(0.8f*i);
     this->ApplyGaussianBlur(img);                           //Blur first, then resize
-    img.Resize((img.width())/(2*i), (img.height())/(2*i)); 
-    img.Resize((img.width())*(2*i), (img.height())*(2*i)); //Subsample (halve size, than back up)
+    img.Resize((img.width())/(2*i), (img.height())/(2*i), InterpType::BILINEAR); 
+    img.Resize((img.width())*(2*i), (img.height())*(2*i), InterpType::NEAREST); //Subsample (halve size, than back up)
     this->gPyramid.octaves.push_back(img);
   }
 }

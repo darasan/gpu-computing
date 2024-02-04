@@ -20,6 +20,11 @@ enum pxChannel{
         BLUE
     };
 
+enum InterpType{
+        BILINEAR = 0, 
+        NEAREST
+    };
+
 class Image {
     private:
         int _width;
@@ -29,16 +34,7 @@ class Image {
         unsigned char *_data;
 
     public:
-    /*
-        Image(int width, int height, int numChannels){
-            //std::cout << "const blank\n" << std::endl;
-            this->_width = width;
-            this->_height = height;
-            this->_numChannels = numChannels;
-            this->_size = (width*height*numChannels);
-            this->_data =  new unsigned char[_size];
-        }; */
-
+    
         //Create image from input data. Copies data to own memory
         Image(int width, int height, int numChannels, unsigned char *data){
             std::cout << "Create image from data" << std::endl;
@@ -53,21 +49,6 @@ class Image {
         ~Image(){std::cout << "destructor" << std::endl;};
 
         Image(std::string filename);
-
-      /*  Image(const Image& img) {
-            std::cout << "Create image from other" << std::endl;
-            this->_width = img.width();
-            this->_height = img.height();
-            this->_numChannels = img.numChannels();
-            this->_size = (img.width()*img.height()*img.numChannels());
-            this->_data =  new unsigned char[this->_size];
-            //std::memcpy(this->_data,img.data(),_size);
-            const unsigned char *imgData = img.data();
-
-            for (int i = 0; i < (this->_size); i++){
-                this->_data[i] = imgData[i];
-            }
-        } */
 
         void FreeImageData(){delete[] this->_data;}
 
@@ -100,7 +81,28 @@ class Image {
             return a*coord + b;
         }
 
-        void Resize(int new_w, int new_h)
+        float InterpolateBilinear(Image& img, float x, float y, pxChannel c)
+        {
+            float p1, p2, p3, p4, q1, q2;
+            float floor_x = std::floor(x), floor_y = std::floor(y);
+            float x_ceil = floor_x + 1, y_ceil = floor_y + 1;
+
+            p1 = img.getPixelValue(floor_x, floor_y, c);
+            p2 = img.getPixelValue(x_ceil, floor_y, c);
+            p3 = img.getPixelValue(floor_x, y_ceil, c);
+            p4 = img.getPixelValue(x_ceil, y_ceil, c);
+            q1 = (y_ceil-y)*p1 + (y-floor_y)*p3;
+            q2 = (y_ceil-y)*p2 + (y-floor_y)*p4;
+
+            return (x_ceil-x)*q1 + (x-floor_x)*q2;
+        }
+
+        float InterpolateNearestNeighbour(Image& img, float x, float y, pxChannel c)
+        {
+            return img.getPixelValue(std::round(x), std::round(y), c);
+        }
+
+        void Resize(int new_w, int new_h, InterpType interp)
         {
             printf("Resize image from x:%d y:%d chans:%d\n", this->_width, this->_height, this->_numChannels);
             printf("               to x:%d y:%d chans:%d\n", new_w, new_h, this->_numChannels);
@@ -116,7 +118,12 @@ class Image {
                     for (int c = 0; c < this->_numChannels; c++) {
                         float old_x = MapCoordinate(this->_width, new_w, x);
                         float old_y = MapCoordinate(this->_height, new_h, y);
-                        value = InterpolateBilinear(*this, old_x, old_y, (pxChannel) c);
+                        if(interp==InterpType::BILINEAR){
+                            value = InterpolateBilinear(*this, old_x, old_y, (pxChannel) c);
+                        }
+                        else if(interp==InterpType::NEAREST) {
+                            value = InterpolateNearestNeighbour(*this, old_x, old_y, (pxChannel) c);
+                        }
                         setPixelValueOnData(x, y, (pxChannel) c, new_w, new_h, this->_numChannels, value, resized_data); 
                     }
                 }
@@ -133,24 +140,7 @@ class Image {
 
             printf("Resized to x:%d y:%d size:%d\n\n\n", this->_width, this->_height, this->_size);
         }
-
-        float InterpolateBilinear(Image& img, float x, float y, pxChannel c)
-        {
-            float p1, p2, p3, p4, q1, q2;
-            float floor_x = std::floor(x), floor_y = std::floor(y);
-            float x_ceil = floor_x + 1, y_ceil = floor_y + 1;
-
-            p1 = img.getPixelValue(floor_x, floor_y, c);
-            p2 = img.getPixelValue(x_ceil, floor_y, c);
-            p3 = img.getPixelValue(floor_x, y_ceil, c);
-            p4 = img.getPixelValue(x_ceil, y_ceil, c);
-            q1 = (y_ceil-y)*p1 + (y-floor_y)*p3;
-            q2 = (y_ceil-y)*p2 + (y-floor_y)*p4;
-
-            return (x_ceil-x)*q1 + (x-floor_x)*q2;
-        }
 };
-
 
 class GaussianPyramid {
 
@@ -158,6 +148,7 @@ class GaussianPyramid {
         int _numOctaves = 8;
         int _numImagesPerOctave = 6;
         std::vector<Image> octaves;
+        //resizable array of images. Not sure why cpp used vector of vectors (ah, prob to separate scales/octaves. 2D array)
 
         GaussianPyramid(){};
         void WriteAllImagesToFile(void);
