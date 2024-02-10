@@ -61,7 +61,8 @@ class Image {
 
         Image(std::string filename);
 
-        void FreeImageData(){delete[] this->_data;}
+        void FreeImageData()
+        {if(this->_data != NULL) {delete[] this->_data;}}
 
         int width() const {return _width;} //read-only
         int height() const {return _height;}
@@ -181,6 +182,7 @@ class SIFT_CUDA {
         void BuildGaussianPyramid(Image baseImage);
         Image ComputeDoG(Image img1, Image img2);
         void BuildDoGPyramid(GaussianPyramid gPyramid);
+        void FreePyramidMemory(void);
 };
 
 #endif

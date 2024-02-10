@@ -43,6 +43,39 @@ void GaussianPyramid::WriteAllImagesToFile(void)
   }
 }
 
+void SIFT_CUDA::FreePyramidMemory(void)
+{
+  int numOctaves = this->dogPyramid.octaves.size();
+  int count = 0;
+
+  for(int i=0; i<numOctaves;i++)
+  {
+      int numScales = this->dogPyramid.octaves[i].size();
+      for(int j=0; j<(numScales);j++)
+      {
+        Image img  = dogPyramid.octaves[i][j];
+        img.FreeImageData();
+        count++;
+      }
+  };
+  std::cout << "Freed " << count << " images from dogPyramid " << std::endl;
+
+  numOctaves = this->gPyramid.octaves.size();
+  count = 0;
+
+  for(int i=0; i<numOctaves;i++)
+  {
+      int numScales = this->gPyramid.octaves[i].size();
+      for(int j=0; j<(numScales);j++)
+      {
+        Image img  = gPyramid.octaves[i][j];
+        img.FreeImageData();
+        count++;
+      }
+  };
+  std::cout << "Freed " << count << " images from gPyramid " << std::endl;
+}
+
 Image SIFT_CUDA::ComputeDoG(Image img1, Image img2)
 {
   if((img1.width() != img2.width()) || (img1.height() != img2.height()))
