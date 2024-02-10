@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------------------
 // * Name:       SIFT_CUDA.hxx
-// * Purpose:    Header file for SIFT_CUDA class 
+// * Purpose:    Header file for SIFT_CUDA class and Image class
 // * History:    Daire O'Neill, December 2023
 // -----------------------------------------------------------------------------
 
@@ -37,7 +37,7 @@ class Image {
     
         //Create image from input data. Copies data to own memory
         Image(int width, int height, int numChannels, unsigned char *data){
-            std::cout << "Create image from data" << std::endl;
+
             this->_width = width;
             this->_height = height;
             this->_numChannels = numChannels;
@@ -46,6 +46,17 @@ class Image {
             std::memcpy(this->_data,data,_size);
         };
 
+        //Create blank image
+        Image(int width, int height, int numChannels){
+            this->_width = width;
+            this->_height = height;
+            this->_numChannels = numChannels;
+            this->_size = (width*height*numChannels);
+            this->_data =  new unsigned char[_size];
+            std::memset(this->_data,0,this->_size);
+        };
+
+        Image(){};
         ~Image(){};
 
         Image(std::string filename);
@@ -138,7 +149,7 @@ class Image {
             delete[] this->_data;
             this->_data = resized_data;
 
-            printf("Resized to x:%d y:%d size:%d\n\n\n", this->_width, this->_height, this->_size);
+            //printf("Resized to x:%d y:%d size:%d\n\n\n", this->_width, this->_height, this->_size);
         }
 };
 
@@ -152,8 +163,8 @@ class GaussianPyramid {
 
         GaussianPyramid(){};
         void WriteAllImagesToFile(void);
-        int numOctaves() const {return _numOctaves;} 
-        int numScalesPerOctave() const {return _numScalesPerOctave;} 
+        int numOctaves() const {return _numOctaves;}
+        int numScalesPerOctave() const {return _numScalesPerOctave;}
 };
 
 class SIFT_CUDA {
@@ -163,11 +174,13 @@ class SIFT_CUDA {
     
     public:
         SIFT_CUDA(){};
+        GaussianPyramid gPyramid;
+        GaussianPyramid dogPyramid;
         void CreateGaussianKernel(float sigma);
         void ApplyGaussianBlur(Image img);
         void BuildGaussianPyramid(Image baseImage);
-
-        GaussianPyramid gPyramid;
+        Image ComputeDoG(Image img1, Image img2);
+        void BuildDoGPyramid(GaussianPyramid gPyramid);
 };
 
 #endif

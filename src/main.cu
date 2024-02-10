@@ -10,18 +10,21 @@
 #include "SIFT_CUDA.hxx"
 
 
-const char* filename = "../img/chartreuse.jpg";
+//const char* filename = "../img/chartreuse.jpg";
+const char* filename = "../img/landscape512.jpg";
 
 int main(int argc, char **argv) {
 
     Image img = Image(filename);
 
-    //Buil Gaussian pyramid from base image
+    //Build Gaussian pyramid from base image
     SIFT_CUDA sift;
     sift.BuildGaussianPyramid(img);
+    sift.BuildDoGPyramid(sift.gPyramid);
+    sift.dogPyramid.WriteAllImagesToFile();
 
-    std::cout <<"pyramid numOctaves: " << sift.gPyramid.numOctaves() << " numImagesPerOctave: " <<  sift.gPyramid.numImagesPerOctave() << " num elements: " << sift.gPyramid.octaves.size() << std::endl;
-    sift.gPyramid.WriteAllImagesToFile();
+    //std::cout <<"pyramid numOctaves: " << sift.gPyramid.numOctaves() << " numScalesPerOctave: " <<  sift.gPyramid.numScalesPerOctave() << " num elements: " << sift.gPyramid.octaves.size() << std::endl;
+    //sift.gPyramid.WriteAllImagesToFile();
 
     //TODO free pyramid memory
     exit(0);

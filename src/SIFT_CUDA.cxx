@@ -26,9 +26,10 @@ void GaussianPyramid::WriteAllImagesToFile(void)
   for(int i=0; i<numOctaves;i++)
   {
       int numScales = this->octaves[i].size();
+
       for(int j=0; j<numScales;j++)
       {
-        string filename {"output/image"+std::to_string(i) + "octave" + std::to_string(j) + ".jpg"};
+        string filename {"output/octave"+std::to_string(i) + "image" + std::to_string(j) + ".jpg"};
         success = stbi_write_jpg(filename.c_str(), this->octaves[i][j].width(), this->octaves[i][j].height(), this->octaves[i][j].numChannels(), this->octaves[i][j].data(), 100);
 
         if(success){
@@ -41,6 +42,64 @@ void GaussianPyramid::WriteAllImagesToFile(void)
       }
   }
 }
+
+Image SIFT_CUDA::ComputeDoG(Image img1, Image img2)
+{
+  if((img1.width() != img2.width()) || (img1.height() != img2.height()))
+  {
+    std::cout <<"Error ComputeDoG: image sizes don't match " << std::endl;
+  }
+
+  int rowIdx = 0, colIdx = 0;
+  unsigned char img1Px = 0, img2Px = 0;
+
+  Image outputDoG = Image(img1.width(), img1.height(),img1.numChannels());
+
+  while(rowIdx<img1.height())
+  {
+    img1Px = img1.getPixelValue(colIdx, rowIdx, RED);
+    img2Px = img2.getPixelValue(colIdx, rowIdx, RED);
+    outputDoG.setPixelValue(colIdx, rowIdx, RED, (img1Px - img2Px));
+
+    img1Px = img1.getPixelValue(colIdx, rowIdx, GREEN);
+    img2Px = img2.getPixelValue(colIdx, rowIdx, GREEN);
+    outputDoG.setPixelValue(colIdx, rowIdx, GREEN, (img1Px - img2Px));
+
+    img1Px = img1.getPixelValue(colIdx, rowIdx, BLUE);
+    img2Px = img2.getPixelValue(colIdx, rowIdx, BLUE);
+    outputDoG.setPixelValue(colIdx, rowIdx, BLUE, (img1Px - img2Px));
+
+    colIdx++;
+    if(colIdx>=img1.width())
+    {
+        rowIdx++;
+        colIdx = 0;
+    }
+  }
+  return outputDoG;
+}
+
+void SIFT_CUDA::BuildDoGPyramid(GaussianPyramid gPyramid)
+{
+  Image diffImg;
+
+  int numOctaves = this->gPyramid.octaves.size();
+
+  for(int i=0; i<numOctaves;i++)
+  {
+      std::vector<Image> scales;
+      int numScales = this->gPyramid.octaves[i].size();
+      for(int j=0; j<(numScales-1);j++)
+      {
+        Image img1  = gPyramid.octaves[i][j];
+        Image img2  = gPyramid.octaves[i][j+1];
+        diffImg = this->ComputeDoG(img1,img2);
+        scales.push_back(diffImg);
+      }
+      this->dogPyramid.octaves.push_back(scales);
+  };
+}
+
 
 void SIFT_CUDA::BuildGaussianPyramid(Image baseImg)
 {
@@ -225,7 +284,6 @@ void SIFT_CUDA::ApplyGaussianBlur(Image img)
     }
 
     tempImg.FreeImageData();
-    std::cout << "Finish gaussian\n" << std::endl;
 }
 
 
