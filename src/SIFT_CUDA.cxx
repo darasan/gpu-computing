@@ -22,15 +22,17 @@ void GaussianPyramid::WriteAllImagesToFile(void)
 {
   int success = 0;
   std::cout <<"WriteAllImagesToFile: " << this->octaves.size() << " octaves" << std::endl;
+  std::cout <<"scales array size (num images) : " <<  this->octaves[0].size() << std::endl;
 
-  for(int i=0; i<this->octaves.size();i++)
+  for(int i=0; i<this->octaves[0].size();i++)
   {
+      //only writing first octave now, TODO add inner loop for all
       string filename {"image"+std::to_string(i) + ".jpg"};
-      success = stbi_write_jpg(filename.c_str(), this->octaves[i].width(), this->octaves[i].height(), this->octaves[i].numChannels(), this->octaves[i].data(), 100);
+      success = stbi_write_jpg(filename.c_str(), this->octaves[0][i].width(), this->octaves[0][i].height(), this->octaves[0][i].numChannels(), this->octaves[0][i].data(), 100);
 
       //std::cout <<"Wrote image " + std::to_string(i) + " to file" << std::endl;
       if(success){
-          std::cout <<"Wrote file: " << filename << " w:" << this->octaves[i].width() << " h: " << this->octaves[i].height() << " chans: " << this->octaves[i].numChannels() << std::endl;
+          std::cout <<"Wrote file: " << filename << " w:" << this->octaves[0][i].width() << " h: " << this->octaves[0][i].height() << " chans: " << this->octaves[0][i].numChannels() << std::endl;
       }
 
       else{
@@ -41,24 +43,31 @@ void GaussianPyramid::WriteAllImagesToFile(void)
 
 void SIFT_CUDA::BuildGaussianPyramid(Image baseImg)
 {
-  //Load base image
-  this->gPyramid.octaves.push_back(baseImg);
-  int numImages = this->gPyramid.numImagesPerOctave();
+  float base_blur = 1.6f;
 
+  //Double base image size and blur
+  baseImg.Resize((baseImg.width())*2, (baseImg.height())*2, InterpType::BILINEAR);
+  this->CreateGaussianKernel(base_blur);
+  this->ApplyGaussianBlur(baseImg); 
 
+  //Add to image array
+  std::vector<Image> scales;
+  scales.push_back(baseImg);
+
+  int numImages = this->gPyramid.numScalesPerOctave();
   for(int i= 1; i<numImages; i++){
     Image img = Image(baseImg.width(), baseImg.height(), baseImg.numChannels(), baseImg.data());
-    this->CreateGaussianKernel(0.8f*i);
-    this->ApplyGaussianBlur(img);                           //Blur first, then resize
-    img.Resize((img.width())/(2*i), (img.height())/(2*i), InterpType::BILINEAR); 
-    img.Resize((img.width())*(2*i), (img.height())*(2*i), InterpType::NEAREST); //Subsample (halve size, than back up)
-    this->gPyramid.octaves.push_back(img);
+    this->CreateGaussianKernel(base_blur+(i*0.35f));
+    this->ApplyGaussianBlur(img);
+    scales.push_back(img);
   }
+  this->gPyramid.octaves.push_back(scales);
+  std::cout << "Pushed octave to pyramid, pyr size" << this->gPyramid.octaves.size() << std::endl;
 }
 
 Image::Image(std::string filename)
 {
-  std::cout << "Load image from file" << std::endl;
+  //std::cout << "Load image from file" << std::endl;
 
   int inputWidth, inputHeight, numChannels;
   unsigned char *inputData = stbi_load(filename.c_str(), &inputWidth, &inputHeight, &numChannels, 0);
@@ -69,7 +78,7 @@ Image::Image(std::string filename)
   }
 
   else{
-      std::cout << "Loaded image: " << filename << std::endl;
+      std::cout << "Loaded image: " << filename << " w:" << inputWidth << " h:" << inputHeight << "chans:" << numChannels << std::endl;
   }
 
   this->_width = inputWidth;
@@ -112,6 +121,8 @@ void SIFT_CUDA::CreateGaussianKernel(float sigma)
   float mean = (kernelSize-1)/2.0f;
   float x = 0.0f;
 
+  std::cout << "Create kernel with sigma = " << sigma << std::endl;
+
   for(int i = 0; i<kernelSize;i++)
   {
     x = i - mean;
@@ -123,7 +134,7 @@ void SIFT_CUDA::CreateGaussianKernel(float sigma)
   for(int i= 0; i<kernelSize; i++)
   {
     this->kernel[i] /= sum;
-    std::cout << "Normalised kernel: i = " << this->kernel[i] << std::endl;
+    //std::cout << "Normalised kernel: i = " << this->kernel[i] << std::endl;
   }
 }
 
@@ -204,7 +215,9 @@ void SIFT_CUDA::ApplyGaussianBlur(Image img)
         colIdx = 0;
       }
     }
+
     tempImg.FreeImageData();
+    std::cout << "Finish gaussian\n" << std::endl;
 }
 
 

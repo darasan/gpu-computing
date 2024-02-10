@@ -146,14 +146,14 @@ class GaussianPyramid {
 
     public:
         int _numOctaves = 8;
-        int _numImagesPerOctave = 6;
-        std::vector<Image> octaves;
-        //resizable array of images. Not sure why cpp used vector of vectors (ah, prob to separate scales/octaves. 2D array)
+        int _numScalesPerOctave = 6;
+        std::vector<std::vector<Image>> octaves;
+        
 
         GaussianPyramid(){};
         void WriteAllImagesToFile(void);
         int numOctaves() const {return _numOctaves;} 
-        int numImagesPerOctave() const {return _numImagesPerOctave;} 
+        int numScalesPerOctave() const {return _numScalesPerOctave;} 
 };
 
 class SIFT_CUDA {
