@@ -7,6 +7,7 @@
 #include <iostream>
 #include <string>
 #include <stdlib.h>
+#include <cuda.h>
 #include "SIFT_CUDA.hxx"
 
 
@@ -15,17 +16,29 @@ const char* filename = "../img/landscape512.jpg";
 
 int main(int argc, char **argv) {
 
-    Image img = Image(filename);
+    //Init CUDA device
+    cudaError_t error;
+    cudaDeviceProp deviceProp;
+    int devID = 0;
+    error = cudaGetDevice(&devID);
+    error = cudaGetDeviceProperties(&deviceProp, devID);
+
+    if (error != cudaSuccess) {
+        std::cerr << "cudaGetDeviceProperties returned error code " << error << "line " << __LINE__  << std::endl;
+        exit(0);
+    } else {
+        std::cout << "GPU Device " << devID << deviceProp.name << " compute capability " << deviceProp.major << "." << deviceProp.minor << std::endl;
+        std::cout << "totalGlobalMem: " << deviceProp.totalGlobalMem << " bytes" << " sharedMemPerBlock: " << deviceProp.sharedMemPerBlock << std::endl;
+        std::cout << "maxGridSize x:" << deviceProp.maxGridSize[0] << " y:" <<  deviceProp.maxGridSize[1] << " maxThreadsPerBlock: " << deviceProp.maxThreadsPerBlock;
+    }
 
     //Build Gaussian pyramid from base image
     SIFT_CUDA sift;
+    Image img = Image(filename);
     sift.BuildGaussianPyramid(img);
     sift.BuildDoGPyramid(sift.gPyramid);
-    sift.dogPyramid.WriteAllImagesToFile();
-
-    //std::cout <<"pyramid numOctaves: " << sift.gPyramid.numOctaves() << " numScalesPerOctave: " <<  sift.gPyramid.numScalesPerOctave() << " num elements: " << sift.gPyramid.octaves.size() << std::endl;
     //sift.gPyramid.WriteAllImagesToFile();
 
-    //TODO free pyramid memory
+    sift.FreePyramidMemory(); 
     exit(0);
 }
