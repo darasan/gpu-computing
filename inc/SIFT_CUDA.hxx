@@ -46,7 +46,7 @@ class Image {
             std::memcpy(this->_data,data,_size);
         };
 
-        ~Image(){std::cout << "destructor" << std::endl;};
+        ~Image(){};
 
         Image(std::string filename);
 

@@ -21,22 +21,23 @@ using namespace std;
 void GaussianPyramid::WriteAllImagesToFile(void)
 {
   int success = 0;
-  std::cout <<"WriteAllImagesToFile: " << this->octaves.size() << " octaves" << std::endl;
-  std::cout <<"scales array size (num images) : " <<  this->octaves[0].size() << std::endl;
+  int numOctaves = this->octaves.size();
 
-  for(int i=0; i<this->octaves[0].size();i++)
+  for(int i=0; i<numOctaves;i++)
   {
-      //only writing first octave now, TODO add inner loop for all
-      string filename {"image"+std::to_string(i) + ".jpg"};
-      success = stbi_write_jpg(filename.c_str(), this->octaves[0][i].width(), this->octaves[0][i].height(), this->octaves[0][i].numChannels(), this->octaves[0][i].data(), 100);
+      int numScales = this->octaves[i].size();
+      for(int j=0; j<numScales;j++)
+      {
+        string filename {"output/image"+std::to_string(i) + "octave" + std::to_string(j) + ".jpg"};
+        success = stbi_write_jpg(filename.c_str(), this->octaves[i][j].width(), this->octaves[i][j].height(), this->octaves[i][j].numChannels(), this->octaves[i][j].data(), 100);
 
-      //std::cout <<"Wrote image " + std::to_string(i) + " to file" << std::endl;
-      if(success){
-          std::cout <<"Wrote file: " << filename << " w:" << this->octaves[0][i].width() << " h: " << this->octaves[0][i].height() << " chans: " << this->octaves[0][i].numChannels() << std::endl;
-      }
+        if(success){
+            std::cout <<"Wrote file: " << filename << " w:" << this->octaves[i][j].width() << " h: " << this->octaves[i][j].height() << " chans: " << this->octaves[i][j].numChannels() << std::endl;
+        }
 
-      else{
-          std::cout <<"Error writing file: " << filename << std::endl;
+        else{
+            std::cout <<"Error writing file: " << filename << std::endl;
+        }
       }
   }
 }
@@ -44,25 +45,32 @@ void GaussianPyramid::WriteAllImagesToFile(void)
 void SIFT_CUDA::BuildGaussianPyramid(Image baseImg)
 {
   float base_blur = 1.6f;
+  int numScales = this->gPyramid.numScalesPerOctave();
+  int numOctaves = this->gPyramid.numOctaves();
 
-  //Double base image size and blur
+  //Double base image size and blur, for first image only
   baseImg.Resize((baseImg.width())*2, (baseImg.height())*2, InterpType::BILINEAR);
   this->CreateGaussianKernel(base_blur);
-  this->ApplyGaussianBlur(baseImg); 
+  this->ApplyGaussianBlur(baseImg);
 
-  //Add to image array
-  std::vector<Image> scales;
-  scales.push_back(baseImg);
+  for(int i= 0; i<numOctaves; i++){
+    std::vector<Image> scales; //1 octave of images
+    scales.push_back(baseImg);
 
-  int numImages = this->gPyramid.numScalesPerOctave();
-  for(int i= 1; i<numImages; i++){
-    Image img = Image(baseImg.width(), baseImg.height(), baseImg.numChannels(), baseImg.data());
-    this->CreateGaussianKernel(base_blur+(i*0.35f));
-    this->ApplyGaussianBlur(img);
-    scales.push_back(img);
+    for(int j = 1; j<numScales; j++){
+      Image img = Image(baseImg.width(), baseImg.height(), baseImg.numChannels(), baseImg.data());
+      this->CreateGaussianKernel(base_blur+(j*0.35f));
+      this->ApplyGaussianBlur(img);
+      scales.push_back(img);
+    }
+    this->gPyramid.octaves.push_back(scales);
+    //std::cout << "Added " << scales.size() << " new images for octave "  << i << std::endl;
+
+    //Set new base image for next octave
+    Image newBaseImg = Image(baseImg.width(), baseImg.height(), baseImg.numChannels(), baseImg.data());
+    newBaseImg.Resize((baseImg.width())/2, (baseImg.height())/2, InterpType::NEAREST);
+    baseImg = newBaseImg;
   }
-  this->gPyramid.octaves.push_back(scales);
-  std::cout << "Pushed octave to pyramid, pyr size" << this->gPyramid.octaves.size() << std::endl;
 }
 
 Image::Image(std::string filename)
