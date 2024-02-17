@@ -18,6 +18,7 @@
 
 using namespace std;
 
+
 void GaussianPyramid::WriteAllImagesToFile(void)
 {
   int success = 0;
@@ -33,13 +34,26 @@ void GaussianPyramid::WriteAllImagesToFile(void)
         success = stbi_write_jpg(filename.c_str(), this->octaves[i][j].width(), this->octaves[i][j].height(), this->octaves[i][j].numChannels(), this->octaves[i][j].data(), 100);
 
         if(success){
-            std::cout <<"Wrote file: " << filename << " w:" << this->octaves[i][j].width() << " h: " << this->octaves[i][j].height() << " chans: " << this->octaves[i][j].numChannels() << std::endl;
+            std::cout <<"Wrote file: " << filename << " w:" << this->octaves[i][j].width() << " h: " << this->octaves[i][j].height() << " chans: " << this->octaves[i][j].numChannels() << " size: " << this->octaves[i][j].size() << std::endl;
         }
 
         else{
             std::cout <<"Error writing file: " << filename << std::endl;
         }
       }
+  }
+}
+
+void SIFT_CUDA::WriteImageToFile(Image img)
+{
+  
+  int success = stbi_write_jpg("outImage.jpg", img.width(), img.height(), img.numChannels(), img.data(), 100);
+  if(success){
+    std::cout << "Wrote file outImage.jpg" << " w:" << img.width() << " h: " << img.height() << " chans: " << img.numChannels() << " size: " << img.size() << std::endl;
+  }
+
+  else{
+    std::cout << "Error writing file" << std::endl;
   }
 }
 
@@ -58,7 +72,6 @@ void SIFT_CUDA::FreePyramidMemory(void)
         count++;
       }
   };
-  std::cout << "Freed " << count << " images from dogPyramid " << std::endl;
 
   numOctaves = this->gPyramid.octaves.size();
   count = 0;
@@ -73,7 +86,35 @@ void SIFT_CUDA::FreePyramidMemory(void)
         count++;
       }
   };
-  std::cout << "Freed " << count << " images from gPyramid " << std::endl;
+}
+
+int SIFT_CUDA::FindKeypointsInImage(int imgOctave, int imgScale)
+{
+  float contrast_threshold = (0.015 * 8);
+  unsigned char px00=0, px01=0, px02=0, px10=0, px12=0, px20=0, px21=0, px22=0; //neighbour pixels. Centre is px11
+  int isMax = 1, isMin = 1;
+  int foundKps = 0;
+
+  Image currImg =  this->gPyramid.octaves[imgOctave][imgScale];
+  std::cout <<"FindKeypointsInImage. x: " << currImg.width() << " y: " << currImg.height() << std::endl;
+  return foundKps;
+}
+
+void SIFT_CUDA::FindKeypoints(void)
+{
+  int numOctaves = this->dogPyramid.octaves.size();
+  int found = 0;
+
+  for(int i=0; i<numOctaves;i++)
+  {
+      int numScales = this->dogPyramid.octaves[i].size();
+      for(int j=0; j<(numScales);j++)
+      {
+        //Image img  = dogPyramid.octaves[i][j];
+        found += FindKeypointsInImage(i,j);
+      }
+  };
+  std::cout <<"Found total keypoints: " << found << std::endl;
 }
 
 Image SIFT_CUDA::ComputeDoG(Image img1, Image img2)
@@ -130,13 +171,14 @@ void SIFT_CUDA::BuildDoGPyramid(GaussianPyramid gPyramid)
         scales.push_back(diffImg);
       }
       this->dogPyramid.octaves.push_back(scales);
-  };
+      std::cout << "Added " << scales.size() << " DoGs for octave "  << i << std::endl;
+  }
 }
 
 
 void SIFT_CUDA::BuildGaussianPyramid(Image baseImg)
 {
-  float base_blur = 1.6f;
+  float base_blur = 1.6f; //test 1.6f; if have 0 blur, every pixel is a kp, total is 7M. ie WxH = num kps
   int numScales = this->gPyramid.numScalesPerOctave();
   int numOctaves = this->gPyramid.numOctaves();
 
@@ -151,7 +193,7 @@ void SIFT_CUDA::BuildGaussianPyramid(Image baseImg)
 
     for(int j = 1; j<numScales; j++){
       Image img = Image(baseImg.width(), baseImg.height(), baseImg.numChannels(), baseImg.data());
-      this->CreateGaussianKernel(base_blur+(j*0.35f));
+      this->CreateGaussianKernel(base_blur+(j*0.6f));
       this->ApplyGaussianBlur(img);
       scales.push_back(img);
     }
@@ -178,7 +220,7 @@ Image::Image(std::string filename)
   }
 
   else{
-      std::cout << "Loaded image: " << filename << " w:" << inputWidth << " h:" << inputHeight << "chans:" << numChannels << std::endl;
+      std::cout << "Loaded image: " << filename << " w:" << inputWidth << " h:" << inputHeight << " chans:" << numChannels << std::endl;
   }
 
   this->_width = inputWidth;
@@ -188,7 +230,7 @@ Image::Image(std::string filename)
   this->_data =  new unsigned char[_size];
   std::memcpy(this->_data,inputData,_size);
 
-  stbi_image_free(inputData); //have own copy, don't need original
+  stbi_image_free(inputData);
 
 };
 
@@ -221,7 +263,7 @@ void SIFT_CUDA::CreateGaussianKernel(float sigma)
   float mean = (kernelSize-1)/2.0f;
   float x = 0.0f;
 
-  std::cout << "Create kernel with sigma = " << sigma << std::endl;
+  //std::cout << "Create kernel with sigma = " << sigma << std::endl;
 
   for(int i = 0; i<kernelSize;i++)
   {
@@ -234,7 +276,6 @@ void SIFT_CUDA::CreateGaussianKernel(float sigma)
   for(int i= 0; i<kernelSize; i++)
   {
     this->kernel[i] /= sum;
-    //std::cout << "Normalised kernel: i = " << this->kernel[i] << std::endl;
   }
 }
 
@@ -315,9 +356,6 @@ void SIFT_CUDA::ApplyGaussianBlur(Image img)
         colIdx = 0;
       }
     }
-
     tempImg.FreeImageData();
 }
-
-
 
