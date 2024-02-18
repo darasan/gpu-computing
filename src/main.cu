@@ -17,7 +17,7 @@ const char* filename = "../img/landscape512.jpg";
 
 __device__ unsigned char getPixelColour(int x, int y, int width, int height, int numChannels, pxChannel colour, unsigned char *data)
 {
-  if (x < 0 || x >= width || y < 0 ||  y >= height || numChannels!=3 || colour < 0 || colour > 3){
+  if (x < 0 || x >= width || y < 0 ||  y >= height || colour < 0 || colour > 3){
     return 0;
   }
 
@@ -28,7 +28,7 @@ __device__ unsigned char getPixelColour(int x, int y, int width, int height, int
 
 __device__ void setPixelColour(int x, int y, int width, int height, int numChannels, pxChannel colour, unsigned char *data, unsigned char value)
 {
-  if (x < 0 || x >= width || y < 0 ||  y >= height || numChannels!=3 || colour < 0 || colour > 3 ){
+  if (x < 0 || x >= width || y < 0 ||  y >= height || colour < 0 || colour > 3 ){
   }
 
   else{
