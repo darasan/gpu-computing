@@ -65,11 +65,11 @@ __device__ bool CheckForLocalMaxInNeighbourScales(unsigned char *imgScale1, unsi
   return true;
 }
 
-__global__ void FINDMAX_CUDA(int inputWidth, int inputHeight, int inputChannels, unsigned char *cudaDeviceInputData, unsigned char *cudaDeviceResult)
+__global__ void FINDMAX_CUDA(int inputWidth, int inputHeight, int inputChannels, unsigned char *cudaDeviceInputData, int *cudaDeviceResult)
 {
   int max = 0, min = 0;
-  int colIdx = blockDim.x * blockIdx.x + threadIdx.x;
-  int rowIdx = blockDim.y * blockIdx.y + threadIdx.y;
+  int tid_x = blockDim.x * blockIdx.x + threadIdx.x;
+  int tid_y = blockDim.y * blockIdx.y + threadIdx.y;
   int ran = 0;
 
   printf("blockIdx.x: %d blockIdx.y: %d\n", blockIdx.x, blockIdx.y);
@@ -96,6 +96,7 @@ __global__ void FINDMAX_CUDA(int inputWidth, int inputHeight, int inputChannels,
       }
   }
   printf("GPU max: %d min: %d ran: %d\n", max, min, ran); //295710. Same as CPU
+  cudaDeviceResult[0] = max;
 }
 
 
@@ -174,17 +175,25 @@ int main(int argc, char **argv) {
     //sift.FindLocalMaxima(currImg, prevImg, nextImg); // KP total max: 25160 min: 270550 for 1 image in loop, thresh 0.6. 1024x1024
     //exit(0);
 
+    //Configure kernel
+    dim3 threadsPerBlock(NUM_THREADS_1D, NUM_THREADS_1D);
+    //dim3 numBlocks(ceil(currImg.width() / threadsPerBlock.x), ceil(currImg.height() / threadsPerBlock.y));
+    dim3 numBlocks(1,1);
+    printf("numBlocks.x / y : %d total threadsPerBlock: %d\n", numBlocks.x, threadsPerBlock.x * threadsPerBlock.x);
+    int gridSize = (threadsPerBlock.x*threadsPerBlock.y) * (numBlocks.x * numBlocks.y);
+    printf("gridSize: %d threads\n", gridSize);
+
     //Allocate device memory for input image
     unsigned char *cudaDeviceInputData;
     cudaMalloc((void **)&cudaDeviceInputData, currImg.size());
 
-    //Allocate and init device memory for result
-    unsigned char *cudaDeviceResult;
-    cudaMalloc((void **)&cudaDeviceResult, currImg.size() );
-    cudaMemset(cudaDeviceResult, 0, currImg.size());
+    //Allocate and init device memory for result. Array of ints, each thread writes num keypoints found
+    int *cudaDeviceResult;
+    cudaMalloc((void **)&cudaDeviceResult, gridSize * sizeof(int));
+    cudaMemset(cudaDeviceResult, 0, gridSize * sizeof(int));
     
-    //Allocate host memory for result (num keypoints)
-    unsigned char *hostResultData = new unsigned char[currImg.size()];
+    //Allocate and init host memory for result
+    int hostResultData[gridSize] = {0};
 
     //Timer
     cudaEvent_t start;
@@ -197,19 +206,13 @@ int main(int argc, char **argv) {
     //Copy image from host to device
     cudaMemcpy(cudaDeviceInputData, currImg.data(), currImg.size(), cudaMemcpyHostToDevice);
 
-    //Set up kernel
-    dim3 threadsPerBlock(NUM_THREADS_1D, NUM_THREADS_1D);
-    //dim3 numBlocks(ceil(currImg.width() / threadsPerBlock.x), ceil(currImg.height() / threadsPerBlock.y));
-    dim3 numBlocks(1,1);
-    printf("numBlocks.x / y : %d total threadsPerBlock: %d\n", numBlocks.x, threadsPerBlock.x * threadsPerBlock.x);
-
     //Run kernel
     std::cout << "Run kernel" << std::endl;
     FINDMAX_CUDA<<<numBlocks, threadsPerBlock>>>(currImg.width(), currImg.height(), currImg.numChannels(), cudaDeviceInputData, cudaDeviceResult);
 
     //Copy back to host 
     std::cout << "Done. Copy result to host" << std::endl << std::endl;
-    cudaMemcpy(hostResultData, cudaDeviceResult, currImg.size(), cudaMemcpyDeviceToHost);
+    cudaMemcpy(hostResultData, cudaDeviceResult, gridSize * sizeof(int), cudaMemcpyDeviceToHost);
 
     //Stop timer
     cudaEventCreate(&stop);
@@ -219,8 +222,9 @@ int main(int argc, char **argv) {
 
     //Check num keypoints in results
     int total = 0;
-    for (int i = 0; i < currImg.size(); i++){
-      total += hostResultData[i];
+    for (int i = 0; i < gridSize; i++){
+      //total += hostResultData[i];
+      printf("hostResultData: %d i:%d\n", hostResultData[i], i);
     }
 
     //printf("Total kps: %d\n", total);
