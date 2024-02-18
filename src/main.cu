@@ -11,7 +11,7 @@
 #include "SIFT_CUDA.hxx"
 
 
-#define NUM_THREADS_1D 1 //Number of threads in 1 dimension of thread block
+#define NUM_THREADS_1D 4 //Number of threads in 1 dimension of thread block
 const char* filename = "../img/landscape512.jpg";
 
 
@@ -68,35 +68,31 @@ __device__ bool CheckForLocalMaxInNeighbourScales(unsigned char *imgScale1, unsi
 __global__ void FINDMAX_CUDA(int inputWidth, int inputHeight, int inputChannels, unsigned char *cudaDeviceInputData, int *cudaDeviceResult)
 {
   int max = 0, min = 0;
+  int contrastThreshold = (int) 255.0 * 0.8;
   int tid_x = blockDim.x * blockIdx.x + threadIdx.x;
   int tid_y = blockDim.y * blockIdx.y + threadIdx.y;
   int ran = 0;
 
-  printf("blockIdx.x: %d blockIdx.y: %d\n", blockIdx.x, blockIdx.y);
-  printf("threadIdx.x: %d threadIdx.y: %d\n", threadIdx.x, threadIdx.y);
-  printf("inputWidth: %d  inputHeight %d\n", inputWidth, inputHeight);
+ // printf("blockIdx.x: %d blockIdx.y: %d\n", blockIdx.x, blockIdx.y);
+ // printf("threadIdx.x: %d threadIdx.y: %d\n", threadIdx.x, threadIdx.y);
+  //printf("inputWidth: %d  inputHeight %d\n", inputWidth, inputHeight);
+  //printf("tid_x: %d  tid_y %d\n", tid_x, tid_y);
 
   unsigned char *imgScale1 = cudaDeviceInputData;
 
-  for (int x = 0; x < inputWidth; x++) {
-      for (int y = 0; y < inputHeight; y++) {
+  unsigned char curPxVal = getPixelColour(tid_x, tid_y, inputWidth, inputHeight, 1, RED, imgScale1);
 
-          unsigned char curPxVal = getPixelColour(x, y, inputWidth, inputHeight, 1, RED, imgScale1);
-          //printf("curPxVal: %d\n", curPxVal);
-
-      if (curPxVal < (255*0.6)) {
-          ran++;
-          if (CheckForLocalMaxInNeighbourScales(imgScale1, imgScale1, imgScale1, curPxVal, inputWidth, inputHeight, x,y)) {
-              max++;
-          }
-          else{
-              min++;
-          }
-      }//if thresh
+  if (curPxVal < contrastThreshold) {
+      ran++;
+      if (CheckForLocalMaxInNeighbourScales(imgScale1, imgScale1, imgScale1, curPxVal, inputWidth, inputHeight, tid_x, tid_y)) {
+          max++;
+      }
+      else{
+          min++;
       }
   }
-  printf("GPU max: %d min: %d ran: %d\n", max, min, ran); //295710. Same as CPU
-  cudaDeviceResult[0] = max;
+  //printf("write result to index: %d\n", (tid_x+(tid_y*blockDim.x)));
+  cudaDeviceResult[(tid_x+(tid_y*blockDim.x))] = max;
 }
 
 
