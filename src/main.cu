@@ -36,6 +36,64 @@ __device__ void setPixelColour(int x, int y, int width, int height, int numChann
   }
 }
 
+__device__ bool CheckForLocalMaxInNeighbourScales(unsigned char *imgScale1, unsigned char *imgScale2, unsigned char *imgScale3, unsigned char curPxVal, int inputWidth, int inputHeight, int x, int y)
+{
+  int inputChannels = 1;
+  bool is_min = true, is_max = true;
+  unsigned char neighbor = 0;
+
+  for (int dx : {-1,0,1}) {
+      for (int dy : {-1,0,1}) {
+          unsigned char neighbor = getPixelColour(x, y, inputWidth, inputHeight, inputChannels, RED, imgScale1);
+
+          if (neighbor > curPxVal) is_max = false;
+          if (neighbor < curPxVal) is_min = false;
+
+          //neighbor = img2.getPixelValue(x+dx, y+dy, RED);
+          //if (neighbor > curPxVal) is_max = false;
+         // if (neighbor < curPxVal) is_min = false;
+
+          //neighbor = img.get_pixel(x+dx, y+dy, 0);
+          //neighbor = img3.getPixelValue(x+dx, y+dy, RED);
+          // std::cout << "curPxVal: " <<  curPxVal<< " neighbor: " << neighbor << std::endl; 
+          //if (neighbor > curPxVal) is_max = false;
+         // if (neighbor < curPxVal) is_min = false;
+
+          if (!is_min && !is_max) return false;
+      }
+  }
+  return true;
+}
+
+__global__ void FINDMAX_CUDA(int inputWidth, int inputHeight, int inputChannels, unsigned char *cudaDeviceInputData, unsigned char *cudaDeviceResult)
+{
+  float contrast_threshold = 0.012;
+  int max = 0, min = 0;
+
+  unsigned char *imgScale1 = cudaDeviceInputData;
+
+  for (int x = 0; x < inputWidth; x++) {
+      for (int y = 0; y < inputHeight; y++) {
+
+          unsigned char curPxVal = getPixelColour(x, y, inputWidth, inputHeight, inputChannels, RED, imgScale1);
+          //printf("curPxVal: %d\n", curPxVal);
+
+      if (curPxVal < (255*0.7)) {
+      
+          if (CheckForLocalMaxInNeighbourScales(imgScale1, imgScale1, imgScale1, curPxVal, inputWidth, inputHeight, x,y)) {
+              max++;
+          }
+          else{
+              min++;
+          }
+      }//if thresh
+      }
+  }
+  printf("max: %d min: %d\n", max, min);
+}
+
+
+/* Submitted version
   __global__ void FINDMAX_CUDA(int inputWidth, int inputHeight, int inputChannels, unsigned char *cudaDeviceInputData, unsigned char *cudaDeviceResult)
   {
     int colIdx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -72,7 +130,7 @@ __device__ void setPixelColour(int x, int y, int width, int height, int numChann
         cudaDeviceResult[(rowIdx * blockDim.x) + colIdx] =  1;
       __syncthreads();
     }
-  }
+  } */
 
 int main(int argc, char **argv) {
 
@@ -97,11 +155,20 @@ int main(int argc, char **argv) {
     Image img = Image(filename);
     sift.BuildGaussianPyramid(img);
     sift.BuildDoGPyramid(sift.gPyramid);
+    
+    Image currImg = sift.gPyramid.octaves[0][0]; //note g for now, not DoG
+    currImg.ConvertToGrayscale();
 
-    //Take base image from first octave
-    //Currently we only check a single image,
-    //next step is to loop through for each scale
-    Image dogImg = sift.dogPyramid.octaves[0][0];
+    Image prevImg = sift.gPyramid.octaves[0][1]; 
+    prevImg.ConvertToGrayscale();
+
+    Image nextImg = sift.gPyramid.octaves[0][2]; //TODO use actual prev/next. No prev for first run
+    nextImg.ConvertToGrayscale();
+
+    sift.FindLocalMaxima(currImg, prevImg, nextImg);
+
+
+/* disable gpu for now, measure perf on host 
 
     //Allocate device memory for input image
     unsigned char *cudaDeviceInputData;
@@ -133,7 +200,7 @@ int main(int argc, char **argv) {
 
     //Run kernel
     std::cout << "Run kernel" << std::endl;
-    FINDMAX_CUDA<<<numBlocks, threadsPerBlock>>>(dogImg.width(), dogImg.height(), dogImg.numChannels(), cudaDeviceInputData, cudaDeviceResult);
+    //FINDMAX_CUDA<<<numBlocks, threadsPerBlock>>>(dogImg.width(), dogImg.height(), dogImg.numChannels(), cudaDeviceInputData, cudaDeviceResult);
 
     //Copy back to host 
     std::cout << "Done. Copy result to host" << std::endl << std::endl;
@@ -153,6 +220,7 @@ int main(int argc, char **argv) {
 
     printf("Total kps: %d\n", total);
     std::cout << "Processing time: " << msecTotal << " (ms)" << std::endl;
+    */
 
     sift.FreePyramidMemory();
     exit(0);

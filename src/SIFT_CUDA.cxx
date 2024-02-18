@@ -88,6 +88,61 @@ void SIFT_CUDA::FreePyramidMemory(void)
   };
 }
 
+bool SIFT_CUDA::CheckForLocalMaxInNeighbourScales(Image img1, Image img2, Image img3, unsigned char curPxVal, int x, int y)
+{
+  bool is_min = true, is_max = true;
+  unsigned char neighbor = 0;
+
+  for (int dx : {-1,0,1}) {
+      for (int dy : {-1,0,1}) {
+          neighbor = img1.getPixelValue(x+dx, y+dy, RED);
+          if (neighbor > curPxVal) is_max = false;
+          if (neighbor < curPxVal) is_min = false;
+
+        //  neighbor = img2.getPixelValue(x+dx, y+dy, RED);
+         // if (neighbor > curPxVal) is_max = false;
+         // if (neighbor < curPxVal) is_min = false;
+
+         // neighbor = img3.getPixelValue(x+dx, y+dy, RED);
+          // std::cout << "curPxVal: " <<  curPxVal<< " neighbor: " << neighbor << std::endl; 
+        // if (neighbor > curPxVal) is_max = false;
+        //  if (neighbor < curPxVal) is_min = false;
+
+          if (!is_min && !is_max) return false;
+      }
+  }
+  return true;
+} 
+
+void SIFT_CUDA::FindLocalMaxima(Image img1, Image img2, Image img3)
+{
+
+  float contrast_threshold = 0.012;
+  int max = 0, min = 0;
+
+  for (int x = 0; x < img1.width(); x++) {
+      for (int y = 0; y < img1.height(); y++) {
+
+          unsigned char curPxVal =  img1.getPixelValue(x, y, RED);
+          //std::cout << "curPxVal 1: " <<  curPxVal << std::endl;
+          //printf("curPxVal 1: %d\n", curPxVal);
+
+      //if (std::abs(curPxVal < 0.8*contrast_threshold)) {
+      if (std::abs(curPxVal < (255*0.7))) { // KP total max: 60357 min: 200104. Less but not by much
+      
+          if (CheckForLocalMaxInNeighbourScales(img1, img2, img3, curPxVal, x,y)) { 
+              max++;
+          }
+          else{
+              min++;
+          }
+      }//if thresh
+      }
+  }
+  std::cout << "KP total max: " <<  max << " min: " << min << std::endl;
+        
+}
+
 int SIFT_CUDA::FindKeypointsInImage(int imgOctave, int imgScale)
 {
   float contrast_threshold = (0.015 * 8);

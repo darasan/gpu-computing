@@ -218,6 +218,11 @@ class SIFT_CUDA {
         void BuildGaussianPyramid(Image baseImage);
         Image ComputeDoG(Image img1, Image img2);
         void BuildDoGPyramid(GaussianPyramid gPyramid);
+        bool CheckForLocalMaxInNeighbourScales(Image img1, Image img2, Image img3, unsigned char curPxVal, int x, int y);
+        void FindLocalMaxima(Image img1, Image img2, Image img3);
+        void FindKeypoints(void);
+        int FindKeypointsInImage(int imgOctave, int imgScale);
+        void WriteImageToFile(Image img);
         void FreePyramidMemory(void);
 };
 
