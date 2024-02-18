@@ -34,7 +34,6 @@ class Image {
         unsigned char *_data;
 
     public:
-    
         //Create image from input data. Copies data to own memory
         Image(int width, int height, int numChannels, unsigned char *data){
 
@@ -85,6 +84,25 @@ class Image {
             }
         }
 
+        void ConvertToGrayscale(void)
+        {
+            if(this->_numChannels != 3)
+            {
+                std::cout << "Grayscale convert error: numChans less than 3\n" << std::endl;
+            }
+
+            for (int x = 0; x < this->_width; x++) {
+                for (int y = 0; y < this->_height; y++) {
+                    float pxRed, pxGreen, pxBlue;
+                    pxRed = this->getPixelValue(x, y, RED);
+                    pxGreen = this->getPixelValue(x, y, GREEN);
+                    pxBlue = this->getPixelValue(x, y, BLUE);
+                    this->_numChannels = 1;
+                    this->setPixelValue(x, y, RED, 0.299*pxRed + 0.587*pxGreen + 0.114*pxBlue);
+                }
+            }
+        }
+
         //Map coordinate from 0-current_max range to 0-new_max range
         float MapCoordinate(float new_max, float current_max, float coord)
         {
@@ -116,9 +134,6 @@ class Image {
 
         void Resize(int new_w, int new_h, InterpType interp)
         {
-            printf("Resize image from x:%d y:%d chans:%d\n", this->_width, this->_height, this->_numChannels);
-            printf("               to x:%d y:%d chans:%d\n", new_w, new_h, this->_numChannels);
-
             unsigned char* resized_data = new unsigned char[new_w*new_h*(this->_numChannels)];
             if(resized_data == NULL ) {
                 std::cout << "Unable to create memory for resized image\n" << std::endl;
@@ -149,9 +164,29 @@ class Image {
             //Reassign data
             delete[] this->_data;
             this->_data = resized_data;
-
-            //printf("Resized to x:%d y:%d size:%d\n\n\n", this->_width, this->_height, this->_size);
         }
+};
+
+class Keypoint {
+    private:
+        int _posX; //location in image
+        int _posY;
+        int _octaveIdx; //octave/scale where found
+        int _scaleIdx;
+
+    public:
+        Keypoint(){};
+        Keypoint(int posX, int posY, int octIdx, int scaleIdx){
+            this->_posX = posX;
+            this->_posY = posY;
+            this->_octaveIdx = octIdx;
+            this->_scaleIdx = scaleIdx;
+        };
+
+        int posX() const {return _posX;}
+        int posY() const {return _posY;}
+        int octaveIdx() const {return _octaveIdx;}
+        int scaleIdx() const {return _scaleIdx;}
 };
 
 class GaussianPyramid {
@@ -161,7 +196,6 @@ class GaussianPyramid {
         int _numScalesPerOctave = 6;
         std::vector<std::vector<Image>> octaves;
         
-
         GaussianPyramid(){};
         void WriteAllImagesToFile(void);
         int numOctaves() const {return _numOctaves;}
@@ -177,6 +211,8 @@ class SIFT_CUDA {
         SIFT_CUDA(){};
         GaussianPyramid gPyramid;
         GaussianPyramid dogPyramid;
+        std::vector<Keypoint> keypoints;
+
         void CreateGaussianKernel(float sigma);
         void ApplyGaussianBlur(Image img);
         void BuildGaussianPyramid(Image baseImage);
