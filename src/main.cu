@@ -44,8 +44,8 @@ __device__ bool CheckForLocalMaxInNeighbourScales(unsigned char *imgScale1, unsi
 
   for (int dx : {-1,0,1}) {
       for (int dy : {-1,0,1}) {
-          unsigned char neighbor = getPixelColour(x, y, inputWidth, inputHeight, inputChannels, RED, imgScale1);
-
+          
+          neighbor = getPixelColour(x+dx, y+dy, inputWidth, inputHeight, inputChannels, RED, imgScale1);
           if (neighbor > curPxVal) is_max = false;
           if (neighbor < curPxVal) is_min = false;
 
@@ -75,7 +75,7 @@ __global__ void FINDMAX_CUDA(int inputWidth, int inputHeight, int inputChannels,
   for (int x = 0; x < inputWidth; x++) {
       for (int y = 0; y < inputHeight; y++) {
 
-          unsigned char curPxVal = getPixelColour(x, y, inputWidth, inputHeight, inputChannels, RED, imgScale1);
+          unsigned char curPxVal = getPixelColour(x, y, inputWidth, inputHeight, 1, RED, imgScale1);
           //printf("curPxVal: %d\n", curPxVal);
 
       if (curPxVal < (255*0.7)) {
