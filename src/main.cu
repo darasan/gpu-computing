@@ -11,7 +11,7 @@
 #include "SIFT_CUDA.hxx"
 
 
-#define NUM_THREADS_1D 4 //Number of threads in 1 dimension of thread block
+#define NUM_THREADS_1D 16 //Number of threads in 1 dimension of thread block
 const char* filename = "../img/landscape512.jpg";
 
 
@@ -72,14 +72,25 @@ __global__ void FINDMAX_CUDA(int inputWidth, int inputHeight, int inputChannels,
   int tid_x = blockDim.x * blockIdx.x + threadIdx.x;
   int tid_y = blockDim.y * blockIdx.y + threadIdx.y;
   int ran = 0;
+  int blockSum = 0;
 
- // printf("blockIdx.x: %d blockIdx.y: %d\n", blockIdx.x, blockIdx.y);
- // printf("threadIdx.x: %d threadIdx.y: %d\n", threadIdx.x, threadIdx.y);
+  extern __shared__ int blockResult[256];
+
+  //Init shared mem (once only)
+  if((threadIdx.x == 0) && (threadIdx.y == 0)){
+    for(int i = 0; i<256; i++){
+      blockResult[i] = 0;
+    }
+  }
+  __syncthreads();
+
+
+  //printf("blockIdx.x: %d blockIdx.y: %d\n", blockIdx.x, blockIdx.y);
+  //printf("threadIdx.x: %d threadIdx.y: %d\n", threadIdx.x, threadIdx.y);
   //printf("inputWidth: %d  inputHeight %d\n", inputWidth, inputHeight);
   //printf("tid_x: %d  tid_y %d\n", tid_x, tid_y);
 
   unsigned char *imgScale1 = cudaDeviceInputData;
-
   unsigned char curPxVal = getPixelColour(tid_x, tid_y, inputWidth, inputHeight, 1, RED, imgScale1);
 
   if (curPxVal < contrastThreshold) {
@@ -92,7 +103,24 @@ __global__ void FINDMAX_CUDA(int inputWidth, int inputHeight, int inputChannels,
       }
   }
   //printf("write result to index: %d\n", (tid_x+(tid_y*blockDim.x)));
-  cudaDeviceResult[(tid_x+(tid_y*blockDim.x))] = max;
+  blockResult[(tid_x+(tid_y*blockDim.x))] = max;
+  __syncthreads();
+
+  //Calculate sum for block
+  for(int j = 0; j<256; j++){
+    blockSum +=  blockResult[j];
+  }
+  __syncthreads();
+  
+  //Write to global mem
+  if((threadIdx.x == 0) && (threadIdx.y == 0)){
+
+   // if(block.Idx.y )
+    
+    printf("Write result to global mem for blockIdx.x %d\n", blockIdx.x);
+    cudaDeviceResult[blockIdx.x] = blockSum;
+    //printf("blockIdx.x: %d blockIdx.y: %d\n", blockIdx.x, blockIdx.y);
+  }
 }
 
 
@@ -173,23 +201,25 @@ int main(int argc, char **argv) {
 
     //Configure kernel
     dim3 threadsPerBlock(NUM_THREADS_1D, NUM_THREADS_1D);
-    //dim3 numBlocks(ceil(currImg.width() / threadsPerBlock.x), ceil(currImg.height() / threadsPerBlock.y));
-    dim3 numBlocks(1,1);
+    //dim3 numBlocks(ceil(currImg.width() / threadsPerBlock.x), ceil(currImg.height() / threadsPerBlock.y)); //nb base image is width *2. so will need 2x if use width here
+    dim3 numBlocks(16,1); 
     printf("numBlocks.x / y : %d total threadsPerBlock: %d\n", numBlocks.x, threadsPerBlock.x * threadsPerBlock.x);
-    int gridSize = (threadsPerBlock.x*threadsPerBlock.y) * (numBlocks.x * numBlocks.y);
-    printf("gridSize: %d threads\n", gridSize);
+    //int gridSize = (threadsPerBlock.x*threadsPerBlock.y) * (numBlocks.x * numBlocks.y);
+
 
     //Allocate device memory for input image
     unsigned char *cudaDeviceInputData;
     cudaMalloc((void **)&cudaDeviceInputData, currImg.size());
 
     //Allocate and init device memory for result. Array of ints, each thread writes num keypoints found
+    int resultSize = numBlocks.x * numBlocks.y; //Calculate sum for each block, then store global result for all blocks
+    printf("resultSize: %d blocks\n", resultSize);
     int *cudaDeviceResult;
-    cudaMalloc((void **)&cudaDeviceResult, gridSize * sizeof(int));
-    cudaMemset(cudaDeviceResult, 0, gridSize * sizeof(int));
+    cudaMalloc((void **)&cudaDeviceResult, resultSize* sizeof(int));
+    cudaMemset(cudaDeviceResult, 0, resultSize * sizeof(int));
     
-    //Allocate and init host memory for result
-    int hostResultData[gridSize] = {0};
+    //Allocate and init host memory for result. One element for each block sum
+    int hostResultData[resultSize] = {0};
 
     //Timer
     cudaEvent_t start;
@@ -208,7 +238,7 @@ int main(int argc, char **argv) {
 
     //Copy back to host 
     std::cout << "Done. Copy result to host" << std::endl << std::endl;
-    cudaMemcpy(hostResultData, cudaDeviceResult, gridSize * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(hostResultData, cudaDeviceResult, resultSize * sizeof(int), cudaMemcpyDeviceToHost);
 
     //Stop timer
     cudaEventCreate(&stop);
@@ -218,12 +248,13 @@ int main(int argc, char **argv) {
 
     //Check num keypoints in results
     int total = 0;
-    for (int i = 0; i < gridSize; i++){
-      //total += hostResultData[i];
+    for (int i = 0; i < resultSize; i++){
+      total += hostResultData[i];
       printf("hostResultData: %d i:%d\n", hostResultData[i], i);
     }
 
-    //printf("Total kps: %d\n", total);
+    printf("Total kps: %d\n", total);
+    printf("numBlocks.x / y : %d total threadsPerBlock: %d\n", numBlocks.x, threadsPerBlock.x * threadsPerBlock.x);
     std::cout << "Processing time: " << msecTotal << " (ms)" << std::endl;
 
 
