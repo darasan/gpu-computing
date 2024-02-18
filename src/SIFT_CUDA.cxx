@@ -137,36 +137,6 @@ int SIFT_CUDA::FindLocalMaxima(Image img1, Image img2, Image img3)
   return max;
 }
 
-/*
-int SIFT_CUDA::FindKeypointsInImage(int imgOctave, int imgScale)
-{
-  float contrast_threshold = (0.015 * 8);
-  unsigned char px00=0, px01=0, px02=0, px10=0, px12=0, px20=0, px21=0, px22=0; //neighbour pixels. Centre is px11
-  int isMax = 1, isMin = 1;
-  int foundKps = 0;
-
-  Image currImg =  this->gPyramid.octaves[imgOctave][imgScale];
-  std::cout <<"FindKeypointsInImage. x: " << currImg.width() << " y: " << currImg.height() << std::endl;
-  return foundKps;
-}
-
-void SIFT_CUDA::FindKeypoints(void)
-{
-  int numOctaves = this->dogPyramid.octaves.size();
-  int found = 0;
-
-  for(int i=0; i<numOctaves;i++)
-  {
-      int numScales = this->dogPyramid.octaves[i].size();
-      for(int j=0; j<(numScales);j++)
-      {
-        //Image img  = dogPyramid.octaves[i][j];
-        found += FindKeypointsInImage(i,j);
-      }
-  };
-  std::cout <<"Found total keypoints: " << found << std::endl;
-} */
-
 Image SIFT_CUDA::ComputeDoG(Image img1, Image img2)
 {
   if((img1.width() != img2.width()) || (img1.height() != img2.height()))
@@ -228,7 +198,7 @@ void SIFT_CUDA::BuildDoGPyramid(GaussianPyramid gPyramid)
 
 void SIFT_CUDA::BuildGaussianPyramid(Image baseImg)
 {
-  float base_blur = 1.6f; //test 1.6f; if have 0 blur, every pixel is a kp, total is 7M. ie WxH = num kps
+  float base_blur = 1.6f; //Based on SIFT paper implementation
   int numScales = this->gPyramid.numScalesPerOctave();
   int numOctaves = this->gPyramid.numOctaves();
 
@@ -248,7 +218,6 @@ void SIFT_CUDA::BuildGaussianPyramid(Image baseImg)
       scales.push_back(img);
     }
     this->gPyramid.octaves.push_back(scales);
-    //std::cout << "Added " << scales.size() << " new images for octave "  << i << std::endl;
 
     //Set new base image for next octave
     Image newBaseImg = Image(baseImg.width(), baseImg.height(), baseImg.numChannels(), baseImg.data());
@@ -259,8 +228,6 @@ void SIFT_CUDA::BuildGaussianPyramid(Image baseImg)
 
 Image::Image(std::string filename)
 {
-  //std::cout << "Load image from file" << std::endl;
-
   int inputWidth, inputHeight, numChannels;
   unsigned char *inputData = stbi_load(filename.c_str(), &inputWidth, &inputHeight, &numChannels, 0);
 
@@ -314,7 +281,6 @@ void SIFT_CUDA::CreateGaussianKernel(float sigma)
   float x = 0.0f;
 
   //std::cout << "Create kernel with sigma = " << sigma << std::endl;
-
   for(int i = 0; i<kernelSize;i++)
   {
     x = i - mean;
