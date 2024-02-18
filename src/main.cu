@@ -71,7 +71,7 @@ __global__ void FINDMAX_CUDA(int inputWidth, int inputHeight, unsigned char * im
   int contrastThreshold = (int) 255.0 * 0.8; //Max level for detection
   int tid_x = blockDim.x * blockIdx.x + threadIdx.x;
   int tid_y = blockDim.y * blockIdx.y + threadIdx.y;
-  int blockSum = 0;
+  int blockSum = 0; 
 
   extern __shared__ int blockResult[NUM_THREADS_1D*NUM_THREADS_1D];
 
@@ -187,8 +187,8 @@ int main(int argc, char **argv) {
     numBlocks = dim3(16,1); //Using dim3(4,4) or larger blocks like above, means that not all threads run the kernel. So leaving to (16,1) for now
     printf("numBlocks.x / y : %d total threadsPerBlock: %d\n", numBlocks.x, threadsPerBlock.x * threadsPerBlock.x);
 
-    //Allocate and init device memory for result. Array of ints, each thread writes num keypoints found
-    int resultSize = numBlocks.x * numBlocks.y; //Calculate sum for each block, then store global result for all blocks
+    //Allocate and init device memory for result
+    int resultSize = numBlocks.x * numBlocks.y;
     printf("resultSize: %d blocks\n", resultSize);
     int *cudaDeviceResult;
     cudaMalloc((void **)&cudaDeviceResult, resultSize* sizeof(int));
@@ -197,25 +197,41 @@ int main(int argc, char **argv) {
     //Allocate and init host memory for result. One element for each block sum
     int hostResultData[resultSize] = {0};
 
+    Image currImg, prevImg, nextImg;
+    unsigned char *imgScale1, *imgScale2, *imgScale3;
+    int numOctaves = sift.gPyramid.octaves.size();
+
     cudaEventCreate(&start);
     cudaEventRecord(start, NULL);
 
-    //Get images from DoG pyramid
-    Image currImg = sift.gPyramid.octaves[0][0];
-    currImg.ConvertToGrayscale();
+    //Main loop - transfer images from DoG pyramid to GPU
+    for(int i=0; i<numOctaves;i++)
+    {
+      int numScales = sift.gPyramid.octaves[i].size();
+      for(int j=0; j<(numScales-2); j++)
+      {
+        currImg = sift.gPyramid.octaves[i][j];
+        currImg.ConvertToGrayscale();
+        cudaMalloc((void **)&imgScale1, currImg.size());                                //Allocate device memory for image
+        cudaMemcpy(imgScale1, currImg.data(), currImg.size(), cudaMemcpyHostToDevice);  //Copy image from host to device
 
-    //Allocate device memory for image 1
-    unsigned char *imgScale1;
-    cudaMalloc((void **)&imgScale1, currImg.size());
+        prevImg = sift.gPyramid.octaves[i][j+1];                                        //previous image scale
+        prevImg.ConvertToGrayscale();
+        cudaMalloc((void **)&imgScale2, prevImg.size());
+        cudaMemcpy(imgScale2, prevImg.data(), prevImg.size(), cudaMemcpyHostToDevice);
 
-    //Copy image from host to device
-    cudaMemcpy(imgScale1, currImg.data(), currImg.size(), cudaMemcpyHostToDevice);
+        nextImg = sift.gPyramid.octaves[i][j+2];                                        //next image scale
+        nextImg.ConvertToGrayscale();
+        cudaMalloc((void **)&imgScale3, nextImg.size());
+        cudaMemcpy(imgScale3, nextImg.data(), nextImg.size(), cudaMemcpyHostToDevice);
+      }
+    }
 
     //Run kernel
     std::cout << "Run kernel" << std::endl;
     FINDMAX_CUDA<<<numBlocks, threadsPerBlock>>>(currImg.width(), currImg.height(), imgScale1, imgScale1, imgScale1, cudaDeviceResult);
 
-    //Copy back to host 
+    //Copy result back to host 
     std::cout << "Done. Copy result to host" << std::endl << std::endl;
     cudaMemcpy(hostResultData, cudaDeviceResult, resultSize * sizeof(int), cudaMemcpyDeviceToHost);
 
@@ -238,6 +254,8 @@ int main(int argc, char **argv) {
     //Clean up
     cudaFree(cudaDeviceResult);
     cudaFree(imgScale1);
+    cudaFree(imgScale2);
+    cudaFree(imgScale3);
 
 #endif
     sift.FreePyramidMemory();
