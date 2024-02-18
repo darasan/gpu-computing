@@ -99,15 +99,13 @@ bool SIFT_CUDA::CheckForLocalMaxInNeighbourScales(Image img1, Image img2, Image 
           if (neighbor > curPxVal) is_max = false;
           if (neighbor < curPxVal) is_min = false;
 
-         // neighbor = img2.getPixelValue(x+dx, y+dy, RED);
-          //if (neighbor > curPxVal) is_max = false;
-         // if (neighbor < curPxVal) is_min = false;
+          neighbor = img2.getPixelValue(x+dx, y+dy, RED);
+          if (neighbor > curPxVal) is_max = false;
+          if (neighbor < curPxVal) is_min = false;
 
-          //neighbor = img3.getPixelValue(x+dx, y+dy, RED);
-          // std::cout << "curPxVal: " <<  curPxVal<< " neighbor: " << neighbor << std::endl; 
-          //if (neighbor > curPxVal) is_max = false;
-          //if (neighbor < curPxVal) is_min = false;
-          //printf("neighbor: %d\n", neighbor);
+          neighbor = img3.getPixelValue(x+dx, y+dy, RED);
+          if (neighbor > curPxVal) is_max = false;
+          if (neighbor < curPxVal) is_min = false;
 
           if (!is_min && !is_max) return false;
       }
@@ -115,36 +113,31 @@ bool SIFT_CUDA::CheckForLocalMaxInNeighbourScales(Image img1, Image img2, Image 
   return true;
 } 
 
-void SIFT_CUDA::FindLocalMaxima(Image img1, Image img2, Image img3)
+int SIFT_CUDA::FindLocalMaxima(Image img1, Image img2, Image img3)
 {
+  int contrastThreshold = (int) 255.0 * 0.8;
   int max = 0, min = 0;
-  int ran = 0;
-
-  printf("inputWidth: %d  inputHeight %d\n", img1.width(), img1.height());
 
   for (int x = 0; x < img1.width(); x++) {
       for (int y = 0; y < img1.height(); y++) {
 
-          unsigned char curPxVal =  img1.getPixelValue(x, y, RED);
-          //std::cout << "curPxVal 1: " <<  curPxVal << std::endl;
-          //printf("curPxVal 1: %d\n", curPxVal);
+        unsigned char curPxVal =  img1.getPixelValue(x, y, RED);
 
-      //if (std::abs(curPxVal < 0.8*contrast_threshold)) {
-      if (std::abs(curPxVal < (255*0.6))) { // KP total max: 60357 min: 200104. Less but not by much
-          ran++;
-          if (CheckForLocalMaxInNeighbourScales(img1, img2, img3, curPxVal, x,y)) { 
-              max++;
-          }
-          else{
-              min++;
-          }
-      }//if thresh
+        if (curPxVal < contrastThreshold) {
+            if (CheckForLocalMaxInNeighbourScales(img1, img2, img3, curPxVal, x,y)) { 
+                max++;
+            }
+            else{
+                min++;
+            }
+        }
       }
   }
-  std::cout << "Host CPU max: " <<  max << " min: " << min << " ran: " << ran << std::endl;
-        
+  //std::cout << "Host CPU max: " <<  max << " min: " << min << std::endl;
+  return max;
 }
 
+/*
 int SIFT_CUDA::FindKeypointsInImage(int imgOctave, int imgScale)
 {
   float contrast_threshold = (0.015 * 8);
@@ -172,7 +165,7 @@ void SIFT_CUDA::FindKeypoints(void)
       }
   };
   std::cout <<"Found total keypoints: " << found << std::endl;
-}
+} */
 
 Image SIFT_CUDA::ComputeDoG(Image img1, Image img2)
 {

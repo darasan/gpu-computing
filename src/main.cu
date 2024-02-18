@@ -10,9 +10,11 @@
 #include <cuda.h>
 #include "SIFT_CUDA.hxx"
 
-
+#define RUN_ON_CPU 1 //Enable to run computation on host CPU, disable to run on GPU
 #define NUM_THREADS_1D 16 //Number of threads in 1 dimension of thread block
+
 const char* filename = "../img/landscape512.jpg";
+//const char* filename = "../img/UGA.jpg";
 
 
 __device__ unsigned char getPixelColour(int x, int y, int width, int height, int numChannels, pxChannel colour, unsigned char *data)
@@ -48,16 +50,16 @@ __device__ bool CheckForLocalMaxInNeighbourScales(unsigned char *imgScale1, unsi
           neighbor = getPixelColour(x+dx, y+dy, inputWidth, inputHeight, inputChannels, RED, imgScale1);
           if (neighbor > curPxVal) is_max = false;
           if (neighbor < curPxVal) is_min = false;
+          //printf("neighbor GPU: %d\n", neighbor);
 
-          //neighbor = img2.getPixelValue(x+dx, y+dy, RED);
-          //if (neighbor > curPxVal) is_max = false;
-         // if (neighbor < curPxVal) is_min = false;
+          neighbor = getPixelColour(x+dx, y+dy, inputWidth, inputHeight, inputChannels, RED, imgScale2);
+          if (neighbor > curPxVal) is_max = false;
+          if (neighbor < curPxVal) is_min = false;
 
-          //neighbor = img.get_pixel(x+dx, y+dy, 0);
-          //neighbor = img3.getPixelValue(x+dx, y+dy, RED);
+          neighbor = getPixelColour(x+dx, y+dy, inputWidth, inputHeight, inputChannels, RED, imgScale3);
           // std::cout << "curPxVal: " <<  curPxVal<< " neighbor: " << neighbor << std::endl; 
-          //if (neighbor > curPxVal) is_max = false;
-         // if (neighbor < curPxVal) is_min = false;
+          if (neighbor > curPxVal) is_max = false;
+          if (neighbor < curPxVal) is_min = false;
 
           if (!is_min && !is_max) return false;
       }
@@ -68,33 +70,25 @@ __device__ bool CheckForLocalMaxInNeighbourScales(unsigned char *imgScale1, unsi
 __global__ void FINDMAX_CUDA(int inputWidth, int inputHeight, int inputChannels, unsigned char *cudaDeviceInputData, int *cudaDeviceResult)
 {
   int max = 0, min = 0;
-  int contrastThreshold = (int) 255.0 * 0.8;
+  int contrastThreshold = (int) 255.0 * 0.8; //Max level for detection
   int tid_x = blockDim.x * blockIdx.x + threadIdx.x;
   int tid_y = blockDim.y * blockIdx.y + threadIdx.y;
-  int ran = 0;
   int blockSum = 0;
 
-  extern __shared__ int blockResult[256];
+  extern __shared__ int blockResult[NUM_THREADS_1D*NUM_THREADS_1D];
 
-  //Init shared mem (once only)
+  //Init shared mem (once per block)
   if((threadIdx.x == 0) && (threadIdx.y == 0)){
-    for(int i = 0; i<256; i++){
+    for(int i = 0; i<(NUM_THREADS_1D*NUM_THREADS_1D); i++){
       blockResult[i] = 0;
     }
   }
   __syncthreads();
 
-
-  //printf("blockIdx.x: %d blockIdx.y: %d\n", blockIdx.x, blockIdx.y);
-  //printf("threadIdx.x: %d threadIdx.y: %d\n", threadIdx.x, threadIdx.y);
-  //printf("inputWidth: %d  inputHeight %d\n", inputWidth, inputHeight);
-  //printf("tid_x: %d  tid_y %d\n", tid_x, tid_y);
-
   unsigned char *imgScale1 = cudaDeviceInputData;
   unsigned char curPxVal = getPixelColour(tid_x, tid_y, inputWidth, inputHeight, 1, RED, imgScale1);
 
   if (curPxVal < contrastThreshold) {
-      ran++;
       if (CheckForLocalMaxInNeighbourScales(imgScale1, imgScale1, imgScale1, curPxVal, inputWidth, inputHeight, tid_x, tid_y)) {
           max++;
       }
@@ -102,66 +96,21 @@ __global__ void FINDMAX_CUDA(int inputWidth, int inputHeight, int inputChannels,
           min++;
       }
   }
-  //printf("write result to index: %d\n", (tid_x+(tid_y*blockDim.x)));
+
   blockResult[(tid_x+(tid_y*blockDim.x))] = max;
   __syncthreads();
 
-  //Calculate sum for block
-  for(int j = 0; j<256; j++){
+  //Calculate partial sum for block
+  for(int j = 0; j<(NUM_THREADS_1D*NUM_THREADS_1D); j++){
     blockSum +=  blockResult[j];
   }
   __syncthreads();
   
   //Write to global mem
   if((threadIdx.x == 0) && (threadIdx.y == 0)){
-
-   // if(block.Idx.y )
-    
-    printf("Write result to global mem for blockIdx.x %d\n", blockIdx.x);
     cudaDeviceResult[blockIdx.x] = blockSum;
-    //printf("blockIdx.x: %d blockIdx.y: %d\n", blockIdx.x, blockIdx.y);
   }
 }
-
-
-/* Submitted version
-  __global__ void FINDMAX_CUDA(int inputWidth, int inputHeight, int inputChannels, unsigned char *cudaDeviceInputData, unsigned char *cudaDeviceResult)
-  {
-    int colIdx = blockDim.x * blockIdx.x + threadIdx.x;
-    int rowIdx = blockDim.y * blockIdx.y + threadIdx.y;
-    int numKeypoints = 0;
-
-    //TODO load part of image for each block into shared memory from global memory
-
-    unsigned char px00=0, px01=0, px02=0, px10=0, px12=0, px20=0, px21=0, px22=0; //neighbour pixels
-    int isMax = 1;
-
-    //Assign centre pixel and check neighbours for local maximum. Read 1 channel only
-    unsigned char curPx =  getPixelColour(colIdx, rowIdx, inputWidth, inputHeight, inputChannels, RED, cudaDeviceInputData);
-
-    //pxXY
-    px00 = getPixelColour(colIdx-1, rowIdx-1, inputWidth, inputHeight, inputChannels, RED, cudaDeviceInputData);
-    px01 = getPixelColour(colIdx-1, rowIdx, inputWidth, inputHeight, inputChannels, RED, cudaDeviceInputData);
-    px02 = getPixelColour(colIdx-1, rowIdx+1, inputWidth, inputHeight, inputChannels, RED, cudaDeviceInputData);
-
-    px10 = getPixelColour(colIdx, rowIdx-1, inputWidth, inputHeight, inputChannels, RED, cudaDeviceInputData);
-    //px11 = curPx
-    px12 = getPixelColour(colIdx, rowIdx+1, inputWidth, inputHeight, inputChannels, RED, cudaDeviceInputData);
-
-    px20 = getPixelColour(colIdx+1, rowIdx-1, inputWidth, inputHeight, inputChannels, RED, cudaDeviceInputData);
-    px21 = getPixelColour(colIdx+1, rowIdx, inputWidth, inputHeight, inputChannels, RED, cudaDeviceInputData);
-    px22 = getPixelColour(colIdx+1, rowIdx+1, inputWidth, inputHeight, inputChannels, RED, cudaDeviceInputData);
-    
-    if((px00>curPx) || (px01>curPx) || (px02>curPx) || (px10>curPx) || (px12>curPx) || (px20>curPx) || (px21>curPx) || (px22>curPx)){
-      isMax = 0;
-    }
-
-    else{
-        //Update keypoint count in global memory
-        cudaDeviceResult[(rowIdx * blockDim.x) + colIdx] =  1;
-      __syncthreads();
-    }
-  } */
 
 int main(int argc, char **argv) {
 
@@ -181,31 +130,61 @@ int main(int argc, char **argv) {
         std::cout << "maxGridSize x:" << deviceProp.maxGridSize[0] << " y:" <<  deviceProp.maxGridSize[1] << " maxThreadsPerBlock: " << deviceProp.maxThreadsPerBlock << std::endl << std::endl;
     }
     
-    //Build Gaussian pyramid from base image
+    //Build Difference of Gaussians pyramid from base image
     SIFT_CUDA sift;
     Image img = Image(filename);
     sift.BuildGaussianPyramid(img);
-    sift.BuildDoGPyramid(sift.gPyramid);
+    sift.BuildDoGPyramid(sift.gPyramid);  //note g for now, not DoG
+
+#ifdef RUN_ON_CPU
+    //Timer
+    cudaEvent_t start;
+    cudaEvent_t stop;
+    float msecTotal;
+
+    cudaEventCreate(&start);
+    cudaEventRecord(start, NULL);
+
+    int keypointsFound = 0;
+    int numOctaves = sift.gPyramid.octaves.size();
+
+    for(int i=0; i<numOctaves;i++)
+    {
+        int numScales = sift.gPyramid.octaves[i].size(); //note g for now, not DoG
+        for(int j=0; j<(numScales-2); j++)
+        {
+          int max = 0;
+          Image currImg = sift.gPyramid.octaves[i][j+0];
+          currImg.ConvertToGrayscale();
+
+          Image prevImg = sift.gPyramid.octaves[i][j+1]; 
+          prevImg.ConvertToGrayscale();
+
+          Image nextImg = sift.gPyramid.octaves[i][j+2];
+          nextImg.ConvertToGrayscale();
+
+          max = sift.FindLocalMaxima(currImg, prevImg, nextImg);
+          keypointsFound += max;
+        }
+    }
+    std::cout << "Total keypoints found: " << keypointsFound << std::endl;
+
+    //Stop timer
+    cudaEventCreate(&stop);
+    cudaEventRecord(stop, NULL);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&msecTotal, start, stop);
+    std::cout << "Processing time: " << msecTotal << " (ms)" << std::endl;
     
-    Image currImg = sift.gPyramid.octaves[0][0]; //note g for now, not DoG
-    currImg.ConvertToGrayscale();
-
-    Image prevImg = sift.gPyramid.octaves[0][1]; 
-    prevImg.ConvertToGrayscale();
-
-    Image nextImg = sift.gPyramid.octaves[0][2]; //TODO use actual prev/next. No prev for first run
-    nextImg.ConvertToGrayscale();
-
-    //sift.FindLocalMaxima(currImg, prevImg, nextImg); // KP total max: 25160 min: 270550 for 1 image in loop, thresh 0.6. 1024x1024
-    //exit(0);
+    exit(0);
+#else
 
     //Configure kernel
-    dim3 threadsPerBlock(NUM_THREADS_1D, NUM_THREADS_1D);
-    //dim3 numBlocks(ceil(currImg.width() / threadsPerBlock.x), ceil(currImg.height() / threadsPerBlock.y)); //nb base image is width *2. so will need 2x if use width here
-    dim3 numBlocks(16,1); 
+    dim3 threadsPerBlock, numBlocks;
+    threadsPerBlock = dim3(NUM_THREADS_1D,NUM_THREADS_1D);
+    //dim3 numBlocks(ceil(currImg.width() / threadsPerBlock.x), ceil(currImg.height() / threadsPerBlock.y));
+    numBlocks = dim3(16,1); 
     printf("numBlocks.x / y : %d total threadsPerBlock: %d\n", numBlocks.x, threadsPerBlock.x * threadsPerBlock.x);
-    //int gridSize = (threadsPerBlock.x*threadsPerBlock.y) * (numBlocks.x * numBlocks.y);
-
 
     //Allocate device memory for input image
     unsigned char *cudaDeviceInputData;
@@ -220,11 +199,6 @@ int main(int argc, char **argv) {
     
     //Allocate and init host memory for result. One element for each block sum
     int hostResultData[resultSize] = {0};
-
-    //Timer
-    cudaEvent_t start;
-    cudaEvent_t stop;
-    float msecTotal;
 
     cudaEventCreate(&start);
     cudaEventRecord(start, NULL);
@@ -250,7 +224,7 @@ int main(int argc, char **argv) {
     int total = 0;
     for (int i = 0; i < resultSize; i++){
       total += hostResultData[i];
-      printf("hostResultData: %d i:%d\n", hostResultData[i], i);
+      //printf("hostResultData: %d i:%d\n", hostResultData[i], i);
     }
 
     printf("Total kps: %d\n", total);
@@ -260,4 +234,5 @@ int main(int argc, char **argv) {
 
     sift.FreePyramidMemory();
     exit(0);
+#endif
 }
